@@ -100,7 +100,6 @@ export function OverviewPage() {
   const sortedEvents = [...o.events].sort((x, y) => RANK[x.tone] - RANK[y.tone]);
   const bad = sortedEvents.filter(e => e.tone === "bad");
   const alerts = c.alerts_to_review;
-  const movedMarkets = o.markets.filter(m => m.state === "moved" || m.state === "stale");
   const rest: Attention[] = o.attention.filter(a => a.kind !== "alerts");
   const sentRadar = o.radar.stories.filter(r => r.status === "sent").length;
 
@@ -137,11 +136,6 @@ export function OverviewPage() {
         <div className="eos-ai-hd"><span className="eos-spark" aria-hidden="true">✦</span>AMIRI Multi-Agent Synthesis · Why today matters to {i.name}</div>
         <div className="eos-ai-bd">
           <b>Radar Agent</b> ({sentRadar} sent), <b>Monitor Agent</b> ({c.monitors_live} live), and <b>Market Series</b> ({c.series_watched} watched) surfaced <b>{plural(f24, "finding")}</b> in the last 24h. <b>Investigation Agent</b> traced <b>{plural(c.effects_to_watch, "product impact")}</b> across <b>{plural(c.open_events, "open event")}</b>.
-        </div>
-        <div className="eos-ai-meta">
-          <span>✦ Monitors: {c.monitors_live} live{c.monitors_waiting_approval ? ` · ${c.monitors_waiting_approval} pending approval` : ""}</span>
-          {movedMarkets.length > 0 && <span>◆ Market anomaly: <b>{movedMarkets[0].name}</b> ({price(movedMarkets[0].close)})</span>}
-          {loadedAt && <span>Updated {ago(loadedAt.toISOString(), now)}</span>}
         </div>
       </div>
 
