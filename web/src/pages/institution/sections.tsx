@@ -126,17 +126,19 @@ function ImportItems({ section, iid, onAdded }: { section: SectionName; iid: str
   );
 }
 
-/** Shared collapsible section header toggle (chevron + heading + optional count/sub). */
+/** Shared collapsible section header toggle (chevron badge + heading + optional count/sub). */
 export function SectionToggle({ title, count, sub, collapsed, onToggle }: {
   title: ReactNode; count?: number; sub?: ReactNode; collapsed: boolean; onToggle: () => void;
 }) {
   return (
     <button type="button" className="eos-sec-toggle" aria-expanded={!collapsed} onClick={onToggle}>
-      <svg className={`eos-sec-chev${collapsed ? " is-closed" : ""}`} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <path d="M4.5 6.2 8 9.8l3.5-3.6" />
-      </svg>
+      <span className={`eos-sec-chev-wrap${collapsed ? " is-closed" : ""}`} aria-hidden="true">
+        <svg className={`eos-sec-chev${collapsed ? " is-closed" : ""}`} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M4.5 6.2 8 9.8l3.5-3.6" />
+        </svg>
+      </span>
       <h2>{title}</h2>
-      {count !== undefined && <span className="tabs" style={{ border: 0, margin: 0 }}><span className="count">{count}</span></span>}
+      {count !== undefined && <span className={`eos-sec-cnt${collapsed ? " is-closed" : ""}`}>{count}</span>}
       {sub && <span className="small muted" style={{ fontWeight: 400 }}>{sub}</span>}
     </button>
   );
@@ -165,7 +167,7 @@ export function SectionList({ section, ctx, reload, suggest, extra, compact, ite
     }
   };
   return (
-    <div className={`card pf-list${collapsed ? " is-collapsed" : ""}`}>
+    <div className={`card pf-list eos-sec-card${collapsed ? " is-collapsed" : ""}`}>
       <div className="hd">
         <SectionToggle title={LABELS[section].many} count={items.length} collapsed={collapsed} onToggle={() => setCollapsed(c => !c)} />
         <span className="spacer" />
@@ -321,7 +323,7 @@ export function LinkGrid({ ctx, rows, cols, field, reload, title }: {
   const place = (c: string) => ctx.profile?.place_names?.[c] ?? c;
   const rowLabel = (r: Item) => rows === "flows" ? `${cw(FLOW_WORDS[r.kind] ?? r.kind)}${r.goods ? ` (${r.goods})` : ""}: ${place(r.counterpart)}` : r[LABELS[rows].nameKey];
   return (
-    <div className={`card${collapsed ? " is-collapsed" : ""}`}>
+    <div className={`card eos-sec-card${collapsed ? " is-collapsed" : ""}`}>
       <div className="hd">
         <SectionToggle title={title} count={R.length} collapsed={collapsed} onToggle={() => setCollapsed(c => !c)} />
         <span className="spacer" />

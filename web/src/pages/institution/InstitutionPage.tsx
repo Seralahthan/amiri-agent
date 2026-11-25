@@ -183,7 +183,7 @@ function CollapsibleCard({ title, count, sub, right, children, defaultCollapsed 
 }) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   return (
-    <div className={`card${collapsed ? " is-collapsed" : ""}`}>
+    <div className={`card eos-sec-card${collapsed ? " is-collapsed" : ""}`}>
       <div className="hd">
         <SectionToggle title={title} count={count} sub={sub} collapsed={collapsed} onToggle={() => setCollapsed(c => !c)} />
         {right && <><span className="spacer" />{right}</>}
