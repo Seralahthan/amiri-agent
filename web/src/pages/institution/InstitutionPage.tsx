@@ -1,6 +1,6 @@
 // The Institution page (ongoing edits) and its shared loading. Everything here works
 // without the assistant: forms, suggestion pickers and link grids on the profile API.
-import { Fragment, useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useContext, useEffect, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { api, ApiError } from "../../api/client";
 import { inst, type HistoryRow, type InstitutionSummary, type Item, type Profile, type Readiness } from "../../api/institutions";
@@ -9,7 +9,7 @@ import { Icon } from "../../components/Icon";
 import { WithChat } from "../../components/SetupChat";
 import { changeWords, countOf, fieldWord, SECTION_ONE, valueText } from "../../components/setupFlow";
 import { StatusPill } from "../../components/blocks";
-import { Banner, DEMOS, InlineSkeleton, LoadError, MenuButton, Modal, PageHead, ResetModal, useRole, useToast, PageSkeleton, StatusIcon } from "../../components/ui";
+import { Banner, ChatToggleCtx, DEMOS, InlineSkeleton, LoadError, MenuButton, Modal, PageHead, ResetModal, useRole, useToast, PageSkeleton, StatusIcon } from "../../components/ui";
 import { dayTime, plural } from "../../format";
 import { cap, words } from "../../plain";
 import { PlaceName, useLoad } from "./fields";
@@ -278,6 +278,16 @@ function AgentsView({ id, pv, names, regulators }: { id: string; pv: number; nam
   );
 }
 
+function SetupAgentOpenBtn() {
+  const chat = useContext(ChatToggleCtx);
+  if (!chat || chat.open) return null;
+  return (
+    <button className="btn btn--primary" type="button" onClick={chat.toggle}>
+      <span aria-hidden="true">✦</span>Setup Agent
+    </button>
+  );
+}
+
 // ---------------------------------------------------------------- the page
 
 export function InstitutionPage() {
@@ -345,6 +355,7 @@ export function InstitutionPage() {
           {i.status === "setup" && <button className="btn btn--primary" type="button" disabled={!readiness.ready} title={readiness.ready ? "" : "Required parts are missing"} onClick={() => act("activate")}>Activate</button>}
           {archived && <button className="btn btn--primary" type="button" onClick={() => act("restore")}>Restore</button>}
           {i.status === "setup" && <button className="btn btn--danger" type="button" aria-label="Delete this institution" title="Delete this institution" onClick={() => setConfirm("delete")}><Icon name="trash" /></button>}
+          <SetupAgentOpenBtn />
         </div>
       </div>
       <div className="banners">
@@ -356,20 +367,48 @@ export function InstitutionPage() {
         {TABS.map(([k, label, full]) => <button key={k} type="button" role="tab" aria-selected={tab === k} title={full !== label ? full : undefined} onClick={() => nav(`/institution/${k}`)}>{label}</button>)}
       </div>
 
-      {tab === "overview" && <div className="col gap16">
-        <div className="card"><div className="bd"><ProfileMap profile={profile} height={340} title={mapTitle(profile)} /></div></div>
-        <div className="grid2">
-          <div className="card"><div className="hd"><h2>Ready to go live?</h2></div><div className="bd"><ReadinessList r={readiness} onFix={goFix} /></div></div>
-          <div className="card"><div className="hd"><h2>In the profile</h2></div><div className="bd"><div className="kv">
-            {Object.entries(LABELS).map(([s, l]) => <Fragment key={s}><div className="k">{l.many}</div><div className="v"><Link to={`/institution/${TAB_OF_SECTION[s]}`}>{i.counts[s as keyof typeof i.counts]}</Link></div></Fragment>)}
-            <div className="k">Owns risk decisions</div><div className="v">{i.governance_body ?? "—"}</div>
-            <div className="k">Settles abroad in</div><div className="v">{i.clearing_currencies?.join(", ") || "—"}</div>
-            <div className="k">Profile version</div><div className="v">{i.profile_version} · changed {dayTime(i.updated_at)}</div>
-          </div></div></div>
-        </div>
-        {readiness.warnings.length > 0 && <div className="card"><div className="hd"><h2>Worth a look</h2></div><div className="bd col" style={{ gap: 6 }}>
-          {readiness.warnings.map((w, k) => <div key={k} className="small"><span className="badge b-warn">{(w.section ?? "").replace(/-/g, " ")}</span> {w.message}</div>)}</div></div>}
-      </div>}
+      {tab === "overview" && (() => {
+        const reqChecks = readiness.checks.filter(c => c.level === "required");
+        const reqOk = reqChecks.filter(c => c.ok).length;
+        const pctReady = reqChecks.length ? Math.round((reqOk / reqChecks.length) * 100) : 100;
+        const corridors = new Set(profile.sections.flows.map(f => f.counterpart)).size;
+        return <div className="col gap16">
+          <div className="eos-ledger" role="group" aria-label="Institution profile summary">
+            <div className="eos-ledger-cell">
+              <span className="eos-l-step">01 · Readiness</span>
+              <span className="eos-l-val" style={{ color: readiness.ready ? "var(--accent)" : "var(--high-ink)" }}>{pctReady}%</span>
+              <span className="eos-l-meta">{readiness.ready ? "All required checks pass" : `${plural(readiness.missing_required, "required part")} missing`}</span>
+            </div>
+            <Link to="/institution/footprint" className="eos-ledger-cell">
+              <span className="eos-l-step">02 · Footprint</span>
+              <span className="eos-l-val">{corridors}</span>
+              <span className="eos-l-meta">Cross-border {corridors === 1 ? "corridor" : "corridors"} · {i.home_country}</span>
+            </Link>
+            <Link to="/institution/customers" className="eos-ledger-cell">
+              <span className="eos-l-step">03 · Portfolio</span>
+              <span className="eos-l-val">{i.counts.products}</span>
+              <span className="eos-l-meta">{plural(i.counts.segments, "segment")} · {plural(i.counts["risk-exposures"], "risk")}</span>
+            </Link>
+            <Link to="/institution/history" className="eos-ledger-cell">
+              <span className="eos-l-step">04 · Version</span>
+              <span className="eos-l-val">v{i.profile_version}</span>
+              <span className="eos-l-meta">Updated {dayTime(i.updated_at)}</span>
+            </Link>
+          </div>
+          <div className="eos-focal"><ProfileMap profile={profile} height={320} title={mapTitle(profile)} /></div>
+          <div className="grid2">
+            <div className="card"><div className="hd"><h2>Ready to go live?</h2></div><div className="bd"><ReadinessList r={readiness} onFix={goFix} /></div></div>
+            <div className="card"><div className="hd"><h2>In the profile</h2></div><div className="bd"><div className="kv">
+              {Object.entries(LABELS).map(([s, l]) => <Fragment key={s}><div className="k">{l.many}</div><div className="v"><Link to={`/institution/${TAB_OF_SECTION[s]}`}>{i.counts[s as keyof typeof i.counts]}</Link></div></Fragment>)}
+              <div className="k">Owns risk decisions</div><div className="v">{i.governance_body ?? "—"}</div>
+              <div className="k">Settles abroad in</div><div className="v">{i.clearing_currencies?.join(", ") || "—"}</div>
+              <div className="k">Profile version</div><div className="v">{i.profile_version} · changed {dayTime(i.updated_at)}</div>
+            </div></div></div>
+          </div>
+          {readiness.warnings.length > 0 && <div className="card"><div className="hd"><h2>Worth a look</h2></div><div className="bd col" style={{ gap: 6 }}>
+            {readiness.warnings.map((w, k) => <div key={k} className="small"><span className="badge b-warn">{(w.section ?? "").replace(/-/g, " ")}</span> {w.message}</div>)}</div></div>}
+        </div>;
+      })()}
       {tab === "customers" && <div className="col gap16">
         <SectionList section="segments" ctx={ctx} reload={S.reload} suggest />
         <SectionList section="products" ctx={ctx} reload={S.reload} suggest />

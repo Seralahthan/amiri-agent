@@ -643,6 +643,89 @@ input[type="range"] { accent-color: var(--accent-strong); }
   .eos-list[data-staging="true"] .eos-grp[data-focused="false"] { filter: none; opacity: 0.72; }
 }
 
+/* Floating ✦ Setup Agent Panel with Refined Running Forest Emerald Orbital Shimmer */
+@property --eos-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+@keyframes eos-orbit-spin {
+  to { --eos-angle: 360deg; }
+}
+.withchat.open { gap: 4px; }
+.chatside.eos-agent-float {
+  position: sticky; top: 14px;
+  height: calc(100dvh - 80px);
+  margin: 14px 16px 14px 4px;
+  padding: 1.5px;
+  border: 0 !important;
+  border-radius: 15px;
+  background: conic-gradient(
+    from var(--eos-angle),
+    var(--hairline-2) 0deg,
+    var(--hairline-2) 250deg,
+    color-mix(in oklch, var(--accent) 55%, transparent) 295deg,
+    var(--accent) 330deg,
+    oklch(76% 0.17 152) 348deg,
+    var(--hairline-2) 360deg
+  );
+  box-shadow: 0 12px 32px rgb(14 90 55 / 0.10), 0 2px 8px rgb(16 22 19 / 0.05);
+  animation: eos-orbit-spin 7s linear infinite;
+  overflow: hidden;
+}
+.chatside.eos-agent-float:has([data-working="true"]) {
+  animation-duration: 2.2s;
+  box-shadow: 0 12px 36px rgb(19 122 71 / 0.18), 0 2px 8px rgb(16 22 19 / 0.06);
+}
+.eos-agent-inner {
+  height: 100%; min-height: 0;
+  display: flex; flex-direction: column;
+  background: var(--pane);
+  border-radius: 13.5px;
+  overflow: hidden;
+}
+.eos-agent-hd {
+  background: var(--surface);
+  padding: 11px 13px;
+  border-bottom: 1px solid var(--hairline);
+}
+.eos-agent-hd .eos-dd-btn { height: 30px; font-size: 12px; padding: 0 8px 0 10px; }
+.eos-agent-hd .eos-dd-menu { left: auto; right: 0; }
+.eos-agent-inner .msg.me { background: var(--accent-strong); color: var(--on-accent); border-radius: 13px 13px 4px 13px; }
+.eos-agent-inner .msg.ai { background: var(--sunken); color: var(--ink); border-radius: 13px 13px 13px 4px; }
+
+/* Revamped Setup Agent Proposal Card (PROPOSED CHANGE · Add / Edit / Remove · Reject / Apply) */
+.eos-prop {
+  background: var(--surface); border: 1px solid var(--accent-line);
+  border-radius: 12px; overflow: hidden;
+  box-shadow: 0 4px 14px rgb(16 22 19 / 0.05);
+}
+.eos-prop-hd { padding: 11px 13px 9px; border-bottom: 1px solid var(--hairline); }
+.eos-prop-k { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+.eos-prop-hd h4 { font-size: 13.5px; font-weight: 700; color: var(--ink); margin: 3px 0 0; line-height: 1.3; }
+.eos-prop-row {
+  display: grid; grid-template-columns: 52px 84px minmax(0, 1fr); gap: 8px; align-items: start;
+  padding: 9px 13px; border-bottom: 1px solid var(--hairline); font-size: 12px;
+}
+.eos-op { display: inline-flex; justify-content: center; padding: 2px 6px; border-radius: 99px; font-size: 11px; font-weight: 700; }
+.eos-op-add { background: var(--accent-soft); color: var(--accent-ink); }
+.eos-op-edit { background: var(--high-soft); color: var(--high-ink); }
+.eos-op-del { background: var(--critical-soft); color: var(--critical-ink); }
+.eos-prop-sec { color: var(--ink-3); font-size: 11.5px; text-transform: capitalize; }
+.eos-prop-val { color: var(--ink); line-height: 1.35; min-width: 0; }
+.eos-prop-note { padding: 8px 13px; font-size: 11.5px; color: var(--ink-3); border-bottom: 1px solid var(--hairline); }
+.eos-prop-ft {
+  padding: 9px 13px; background: var(--paper);
+  display: flex; align-items: center; gap: 7px;
+}
+.eos-prop-fits { font-size: 11.5px; font-weight: 600; color: var(--accent); flex: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .chatside.eos-agent-float { animation: none; background: var(--accent-line); }
+}
+@media (max-width: 1020px) {
+  .chatside.eos-agent-float { position: static; height: 560px; margin: 12px 16px 24px; }
+}
+
 /* Scenario Studio 21-day injection timeline bar */
 .eos-tl-bar { display: flex; align-items: flex-end; gap: 3px; height: 22px; }
 .eos-tl-day { flex: 1; height: 7px; border-radius: 3px; background: var(--sunken); transition: height 180ms var(--ease-out), background 180ms var(--ease-out); }
