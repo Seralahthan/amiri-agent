@@ -201,8 +201,13 @@ body {
 .brand b { letter-spacing: -0.02em; font-size: 15px; }
 .side { background: var(--paper); border-right: 1px solid var(--hairline); }
 .nav a { font-size: var(--fs-sm); height: 38px; border-radius: var(--r-nav); }
-.nav a[aria-current="page"] { background: var(--accent-soft); color: var(--accent-ink); font-weight: 600; }
-.nav a[aria-current="page"] svg { stroke-width: 2.2; color: var(--accent-ink); }
+.nav a[aria-current="page"], .nav a.eos-nav-active { background: var(--accent-soft); color: var(--accent-ink); font-weight: 600; }
+.nav a[aria-current="page"] svg, .nav a.eos-nav-active svg { stroke-width: 2.2; color: var(--accent-ink); }
+.eos-h-ok, .mon-n, .ev-n, .fd-n { color: var(--accent-ink); }
+.eos-h-crit { color: var(--critical-ink); }
+.eos-h-warn { color: var(--high-ink); }
+.eos-pad .fd-groups { margin-top: 4px; }
+.eos-pad .fd-groups > section:first-child { border-top: 0; padding-top: 6px; }
 .nav a .count.hot { animation: none; }
 
 /* Rule 2.1: Tactile Button Press — Sink & Spring */

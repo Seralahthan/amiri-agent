@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { Link, Navigate, NavLink, Route, Routes, useLocation } from "react-router-dom";
+import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { Icon } from "./components/Icon";
 import { Empty, isDown, PageHead, PageSkeleton, useNow, useRole, type Role } from "./components/ui";
 import { api, ME } from "./api/client";
@@ -295,10 +295,10 @@ function Frame({ inst }: { inst: Installation }) {
                   ? pathname.startsWith("/events") || pathname.startsWith("/findings")
                   : pathname === to || pathname.startsWith(`${to}/`);
               return (
-              <NavLink key={to} to={to} aria-current={active ? "page" : undefined}>
+              <Link key={to} to={to} className={active ? "eos-nav-active" : undefined} aria-current={active ? "page" : undefined}>
                 <Icon name={icon} /><span>{label}</span>
                 {to === "/alerts" && alerts?.to_review ? <span className={`count ${alerts.by_level.warning ? "hot" : ""}`}>{alerts.to_review}<span className="sr"> to review</span></span> : null}
-              </NavLink>);
+              </Link>);
             })}
               </div>);
             })}
@@ -352,11 +352,11 @@ function Frame({ inst }: { inst: Installation }) {
         </main>
       </div>
       <nav className="eos-mobnav" aria-label="Quick navigation">
-        <NavLink to="/home"><Icon name="home" /><span>Home</span></NavLink>
-        <NavLink to="/alerts"><Icon name="alert" /><span>Alerts</span></NavLink>
-        <NavLink to="/events"><Icon name="events" /><span>Events</span></NavLink>
-        <NavLink to="/monitors"><Icon name="monitor" /><span>Watch</span></NavLink>
-        <NavLink to="/institution"><Icon name="bank" /><span>Bank</span></NavLink>
+        <Link to="/home" aria-current={pathname === "/home" ? "page" : undefined}><Icon name="home" /><span>Home</span></Link>
+        <Link to="/alerts" aria-current={pathname.startsWith("/alerts") ? "page" : undefined}><Icon name="alert" /><span>Alerts</span></Link>
+        <Link to="/events" aria-current={pathname.startsWith("/events") || pathname.startsWith("/findings") ? "page" : undefined}><Icon name="events" /><span>Events</span></Link>
+        <Link to="/monitors" aria-current={pathname.startsWith("/monitors") || pathname.startsWith("/radar") || pathname.startsWith("/series") ? "page" : undefined}><Icon name="monitor" /><span>Watch</span></Link>
+        <Link to="/institution" aria-current={pathname.startsWith("/institution") ? "page" : undefined}><Icon name="bank" /><span>Bank</span></Link>
       </nav>
     </div>
   );

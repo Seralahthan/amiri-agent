@@ -104,7 +104,7 @@ export function SeriesList() {
         <div>
           <div className="label">Market Surveillance · Twelve Data</div>
           <h1>
-            {items === null ? "Market Series" : <>{count(items.length, "price")} watched{items.some(x => x.state === "moved") ? <> · <span style={{ color: "var(--high-ink)" }}>{items.filter(x => x.state === "moved").length} unusual</span></> : ""}</>}
+            {items === null ? "Market Series" : <><span className="eos-h-ok">{count(items.length, "price")}</span> watched{items.some(x => x.state === "moved") ? <> · <span className="eos-h-warn">{items.filter(x => x.state === "moved").length} unusual</span></> : ""}</>}
           </h1>
         </div>
       </div>

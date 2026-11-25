@@ -229,7 +229,7 @@ export function RadarPage() {
         <div>
           <div className="label">{st ? `World Radar · ${sched}${lr ? ` · last ${ago(lr.finished_at ?? lr.created_at, now)}` : ""}${st.connected ? ` · next ${next}` : ""}` : "World Radar"}</div>
           <h1>{!st ? "World Radar" : !lr ? "Radar hasn't read the news yet"
-            : <>Radar read <span className="mono">{(lr.considered ?? 0).toLocaleString()}</span> articles and sent <span style={{ color: "var(--accent-ink)" }}>{lr.sent ?? 0}</span></>}</h1>
+            : <>Radar read <span className="eos-h-ok mono">{(lr.considered ?? 0).toLocaleString()}</span> articles and sent <span className="eos-h-ok">{lr.sent ?? 0}</span></>}</h1>
         </div>
       </div>
 

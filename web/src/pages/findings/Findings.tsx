@@ -129,7 +129,7 @@ export function FindingsPage() {
       <div className="eos-hd">
         <div>
           <div className="label">Signal Funnel · Last {DAYS} days{loadedAt ? ` · updated ${ago(loadedAt.toISOString(), now)}` : ""}</div>
-          <h1>{items === null ? "Findings" : <>{count(xs.length, "finding")} came in this week</>}</h1>
+          <h1>{items === null ? "Findings" : <><span className="eos-h-ok">{count(xs.length, "finding")}</span> came in this week</>}</h1>
           {items !== null && xs.length > 0 && <p className="sub">{linked ? <><b>{linked}</b> {into}</> : "None went into an event"}{aside.length ? <>; <b>{aside.length}</b> had no impact</> : null}.</p>}
         </div>
       </div>
