@@ -287,7 +287,7 @@ export function RadarPage() {
             {show === "all" && !where ? (st?.connected ? "Radar hasn't found anything touching your footprint yet. Check now runs it at once." : admin ? "Connect the Radar agent (RADAR_URL) and it starts reading the news." : "Radar starts reading the news once your Platform Admin connects it.") : "No stories match these filters."}</Empty>
         : <div className="rd-split">
           <nav className="rd-index" aria-label="Stories" data-staging={loaded.length > 1 && (hover !== null || inView !== null) ? "true" : "false"}>
-            <ol ref={listRef} className={single.current ? "snap" : undefined} onKeyDown={keys} onScroll={scrolled} onMouseLeave={() => setHover(null)}>{loaded.map(d => {
+            <ol ref={listRef} className={single.current ? "snap" : undefined} onKeyDown={keys} onScroll={scrolled} onMouseLeave={() => { clearTimeout(peek.current); setHover(null); }}>{loaded.map(d => {
               const { top, rest } = rowsOf(d), isOpen = open.has(d);
               const focusedDay = hover ?? inView;
               const stagingDay = loaded.length > 1 && focusedDay !== null;
@@ -296,7 +296,7 @@ export function RadarPage() {
                 <span className="rd-day">{day((top[0] ?? rest[0]).last_seen_at)}</span>
                 <ol>{(isOpen ? [...top, ...rest] : top).map(s => <li key={s.story_id}>
                   <button type="button" data-id={s.story_id} className={s.status} title={s.title} aria-current={cur?.story_id === s.story_id} onClick={() => setSel(s.story_id)}
-                    onMouseEnter={() => { clearTimeout(peek.current); peek.current = window.setTimeout(() => setSel(s.story_id), 180); }}
+                    onMouseEnter={() => { clearTimeout(peek.current); peek.current = window.setTimeout(() => setSel(s.story_id), 90); }}
                     onMouseLeave={() => clearTimeout(peek.current)}>
                     <span className="rd-dot" aria-hidden="true" />
                     <span className="rd-it"><span className="rd-tt">{undated(s.title)}</span>

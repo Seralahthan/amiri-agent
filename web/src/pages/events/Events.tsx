@@ -165,8 +165,7 @@ export function EventsPage() {
   const [query, setQuery] = useState("");
   const [toneFilter, setToneFilter] = useState("");
   const [sim, setSim] = useState(false);  // simulated events (from a series' "Simulate a move") stay out of the live picture unless asked for
-  const [sel, setSel] = useState<string | null>(null);    // the event picked with a click
-  const [peek, setPeek] = useState<string | null>(null);  // the event the mouse rests on: shown until it leaves the list
+  const [sel, setSel] = useState<string | null>(null);    // the selected event (kept when moving to the detail pane)
   const [why, setWhy] = useState(false);                   // "Why it matters to you" opened: kept as the reader moves between events
   const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
   const [scrollGroup, setScrollGroup] = useState<string | null>(null);
@@ -212,7 +211,7 @@ export function EventsPage() {
     }).sort((a, b) => sort === "impacts" ? b.hypotheses - a.hypotheses || (a.anchor < b.anchor ? 1 : -1) : (a.anchor < b.anchor ? 1 : -1));
   }, [shown, show, sort, query, toneFilter]);
   const reach = rows.filter(e => e.hypotheses > 0), none = rows.filter(e => e.hypotheses === 0);
-  const cur = rows.find(e => e.event_id === peek) ?? rows.find(e => e.event_id === sel) ?? reach[0] ?? rows[0];
+  const cur = rows.find(e => e.event_id === sel) ?? reach[0] ?? rows[0];
   const { details: ev, failed } = useEventDetails(shown, cur?.event_id, retry);
   const open =(events ?? []).filter(e => e.world === "live" && e.status === "open");
   const checks = !!status?.validation;
@@ -239,10 +238,10 @@ export function EventsPage() {
 
   const item =(e: EventRow) => <li key={e.event_id}>
     <button type="button" aria-current={cur?.event_id === e.event_id}
-      // resting on an event previews it, after a moment so passing over rows on the way to the reader doesn't
-      onMouseEnter={() => { clearTimeout(timer.current); timer.current = window.setTimeout(() => setPeek(e.event_id), 180); }}
+      // resting on an event selects it (90ms debounce) and keeps it selected when moving into the detail pane
+      onMouseEnter={() => { clearTimeout(timer.current); timer.current = window.setTimeout(() => setSel(e.event_id), 90); }}
       onMouseLeave={() => clearTimeout(timer.current)}
-      onClick={() => { clearTimeout(timer.current); setPeek(null); setSel(e.event_id);  // on a phone the reader is under the list: go to it
+      onClick={() => { clearTimeout(timer.current); setSel(e.event_id);  // on a phone the reader is under the list: go to it
       if (matchMedia("(max-width:900px)").matches) requestAnimationFrame(() => document.getElementById("ev-read-h")?.scrollIntoView({ block: "start" })); }}>
       <span className="ev-tt">{title(e)}</span>
       <span className="ev-isub">{e.hypotheses ? `${count(e.hypotheses, "possible impact")} · ` : ""}{dayTime(e.anchor)}{e.status === "closed" && show === "all" ? " · closed" : ""}{e.world !== "live" ? " · simulated" : ""}</span>
@@ -315,7 +314,7 @@ export function EventsPage() {
         };
         return <div className="eos-split">
         <nav className="eos-list ev-index" aria-label="Events" ref={nav} data-staging={staging ? "true" : "false"}
-          onMouseLeave={() => { clearTimeout(timer.current); setPeek(null); setHoveredGroup(null); }}
+          onMouseLeave={() => { clearTimeout(timer.current); setHoveredGroup(null); }}
           onScroll={onEvScroll}>
           {reach.length > 0 && <section className="eos-grp hit" data-grp="hit" data-focused={!staging || focusedGroup === "hit" ? "true" : "false"}
             onMouseEnter={() => setHoveredGroup("hit")} aria-labelledby="ev-k-hit">
