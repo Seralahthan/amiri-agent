@@ -854,8 +854,92 @@ input[type="range"] { accent-color: var(--accent-strong); }
 .eos-tl-day.news { height: 14px; background: color-mix(in oklch, var(--accent) 45%, transparent); }
 .eos-tl-day.shock { height: 20px; background: var(--critical); }
 
+/* Market Series Editorial Anomaly Dossier Inspector (Variation 1) */
+.eos-ms-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 600;
+}
+.eos-ms-pill.hot {
+  background: var(--high-soft); color: var(--high-ink);
+  border: 1px solid color-mix(in oklch, var(--high) 26%, transparent);
+}
+.eos-ms-hero { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.eos-ms-price { font-size: 30px; font-weight: 700; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; color: var(--ink); line-height: 1.1; }
+.eos-ms-chg { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ink); }
+.eos-ms-chg.hot { color: var(--high-ink); }
+.eos-ms-chart {
+  background: var(--paper); border: 1px solid var(--hairline);
+  border-radius: var(--r-card); padding: 12px 14px 10px;
+}
+.eos-ms-seg {
+  display: inline-flex; padding: 3px; border-radius: 9px;
+  background: var(--sunken); border: 1px solid var(--hairline); gap: 2px;
+}
+.eos-ms-seg button {
+  border: 0; background: transparent; padding: 4px 10px; border-radius: 6px;
+  font-size: 11.5px; font-weight: 600; color: var(--ink-2); cursor: pointer;
+  transition: background 140ms var(--ease-out), color 140ms var(--ease-out);
+}
+.eos-ms-seg button:hover { color: var(--ink); }
+.eos-ms-seg button.active {
+  background: var(--pane); color: var(--ink);
+  box-shadow: 0 1px 3px rgb(16 22 19 / 0.08);
+}
+.eos-ms-svg { width: 100%; height: 96px; display: block; }
+.eos-ms-cfoot {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+  margin-top: 8px; font-size: 11.5px; color: var(--ink-3);
+}
+.eos-ms-cfoot a { color: var(--accent); font-weight: 600; text-decoration: none; }
+.eos-ms-cfoot a:hover { text-decoration: underline; }
+.eos-ms-ladder { padding: 2px 0; }
+.eos-ms-lk {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase;
+  color: var(--ink-3); margin-bottom: 10px;
+}
+.eos-ms-lrow {
+  display: grid; grid-template-columns: 48px 58px minmax(0, 1fr) 44px;
+  align-items: center; gap: 10px; font-size: 12.5px;
+}
+.eos-ms-ld { color: var(--ink-2); }
+.eos-ms-lc { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; color: var(--ink); }
+.eos-ms-ltrack {
+  position: relative; height: 6px; border-radius: 999px; background: var(--sunken);
+}
+.eos-ms-lfill {
+  height: 100%; border-radius: 999px; background: var(--ink-3); opacity: 0.65;
+  transition: width 220ms var(--ease-out);
+}
+.eos-ms-lfill.hot { background: var(--high); opacity: 1; }
+.eos-ms-ltick {
+  position: absolute; top: -4px; bottom: -4px; width: 1.5px;
+  background: var(--ink); border-radius: 2px;
+}
+.eos-ms-lz { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; color: var(--ink); }
+.eos-ms-lz.hot { color: var(--high-ink); }
+.eos-ms-chip {
+  padding: 4px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 600;
+  border: 1px solid var(--hairline-2); background: var(--paper); color: var(--ink-2); cursor: pointer;
+  transition: background 140ms var(--ease-out), color 140ms var(--ease-out), border-color 140ms var(--ease-out);
+}
+.eos-ms-chip:hover { color: var(--accent); border-color: var(--accent-line); }
+.eos-ms-chip.sel { background: var(--accent-soft); color: var(--accent-ink); border-color: var(--accent-line); }
+.eos-ms-pct {
+  display: inline-flex; align-items: center; gap: 4px;
+  height: 30px; padding: 0 9px; border-radius: var(--r-control);
+  border: 1px solid var(--hairline-2); background: var(--pane);
+  font-size: 12.5px; font-weight: 600; color: var(--ink-2);
+}
+.eos-ms-pct input {
+  width: 46px; border: 0; outline: 0; background: transparent;
+  font: inherit; color: var(--ink); text-align: right; font-variant-numeric: tabular-nums;
+}
+
 /* Clean Tinted Sub-Section Fold (Monitors, Studio, Alerts, Series, Overview) */
+.eos-insp > * { flex-shrink: 0; }
 details.eos-fold {
+  flex: none;
   border: 1px solid var(--hairline);
   border-radius: 10px;
   background: var(--pane);

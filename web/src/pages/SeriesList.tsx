@@ -1,8 +1,7 @@
-// Market Series — Master-Detail Symbol Search, Asset Type Filter & Z-Score Inspector (V2.2).
+// Market Series — Master-Detail Symbol Search, Asset Type Filter & Editorial Anomaly Dossier Inspector.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { seriesApi, type Series, type SeriesStatus } from "../api/series";
-import { Spark } from "../components/charts";
+import { seriesApi, type Bar, type Series, type SeriesStatus, type SimulateResult } from "../api/series";
 import { Icon } from "../components/Icon";
 import { SelectMenu } from "../components/SelectMenu";
 import { SurveillanceTabs } from "../components/WorkspaceTabs";
@@ -14,6 +13,60 @@ import { count, ruleText } from "../plain";
 
 const POLL_MS = 60_000;
 const concern = (s: Series) => (s.state === "moved" ? 0 : s.state === "stale" ? 1 : 2);
+const CHART_RANGES = [
+  { id: "1w", label: "1 week", days: 7, interval: "1h" as const },
+  { id: "1m", label: "1 month", days: 31, interval: "1h" as const },
+  { id: "3m", label: "3 months", days: 92, interval: "1d" as const },
+];
+const SHOCK_PRESETS = [-5, -3, 3, 5];
+
+/** Compact shaded usual-range trajectory chart with breakout dot. */
+function SeriesBandChart({ s, bars, unusual }: { s: Series; bars: Bar[] | null; unusual: boolean }) {
+  const vals = useMemo(() => {
+    const src = bars && bars.length > 1 ? bars.map(b => b.close) : s.spark.map(p => p.close);
+    return src.filter(v => Number.isFinite(v));
+  }, [bars, s.spark]);
+
+  if (vals.length < 2) {
+    return <div className="small muted" style={{ padding: "24px 0", textAlign: "center" }}>Not enough price history yet.</div>;
+  }
+
+  const w = 420;
+  const h = 96;
+  const padY = 10;
+  const sorted = [...vals].sort((a, b) => a - b);
+  const q1 = sorted[Math.floor(sorted.length * 0.2)];
+  const q3 = sorted[Math.floor(sorted.length * 0.8)];
+  const med = sorted[Math.floor(sorted.length * 0.5)];
+  const typPct = s.latest?.typical_daily_move_pct;
+  const halfBand = typPct && typPct > 0 ? Math.max((q3 - q1) / 2, med * (typPct / 100) * 1.4) : Math.max((q3 - q1) / 2, med * 0.002);
+  const bandLo = med - halfBand;
+  const bandHi = med + halfBand;
+
+  const minV = Math.min(...vals, bandLo);
+  const maxV = Math.max(...vals, bandHi);
+  const span = maxV - minV || 1;
+  const xAt = (i: number) => (i / (vals.length - 1)) * w;
+  const yAt = (v: number) => padY + (1 - (v - minV) / span) * (h - padY * 2);
+
+  const d = vals.map((v, i) => `${i === 0 ? "M" : "L"}${xAt(i).toFixed(1)},${yAt(v).toFixed(1)}`).join(" ");
+  const yHi = yAt(bandHi);
+  const yLo = yAt(bandLo);
+  const lastX = xAt(vals.length - 1);
+  const lastY = yAt(vals[vals.length - 1]);
+
+  return (
+    <svg className="eos-ms-svg" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" role="img" aria-label={`${s.name} price trajectory`}>
+      <rect x="0" y={yHi} width={w} height={Math.max(4, yLo - yHi)} fill="var(--sunken)" rx="2" />
+      <line x1="0" y1={yHi} x2={w} y2={yHi} stroke="var(--hairline-2)" strokeDasharray="3 3" strokeWidth="1" />
+      <line x1="0" y1={yLo} x2={w} y2={yLo} stroke="var(--hairline-2)" strokeDasharray="3 3" strokeWidth="1" />
+      <path d={d} fill="none" stroke="var(--ink)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+      {unusual && (
+        <circle cx={lastX} cy={lastY} r="4.5" fill="var(--high)" stroke="var(--pane)" strokeWidth="2" />
+      )}
+    </svg>
+  );
+}
 
 export function useSeriesStatus() {
   const [status, setStatus] = useState<SeriesStatus | null>(null);
@@ -57,8 +110,11 @@ export function SeriesList() {
   const hoverTimer = useRef<number>(0);
   const scrollTimer = useRef<number>(0);
   useEffect(() => () => { window.clearTimeout(hoverTimer.current); window.clearTimeout(scrollTimer.current); }, []);
-  const [simPct, setSimPct] = useState(5);
+  const [simPct, setSimPct] = useState(-5);
   const [simBusy, setSimBusy] = useState(false);
+  const [simOut, setSimOut] = useState<SimulateResult | null>(null);
+  const [rangeId, setRangeId] = useState<string>("1m");
+  const [bars, setBars] = useState<Bar[] | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [adding, setAdding] = useState(false);
   const { status, reload: reloadStatus } = useSeriesStatus();
@@ -91,10 +147,25 @@ export function SeriesList() {
 
   const cur = filtered.find(s => s.series_id === selId) ?? filtered[0] ?? null;
 
+  useEffect(() => {
+    setSimOut(null);
+    if (!cur) { setBars(null); return; }
+    const range = CHART_RANGES.find(r => r.id === rangeId) ?? CHART_RANGES[1];
+    const lastMs = cur.latest?.bar_ts ? new Date(cur.latest.bar_ts).getTime() : 0;
+    const anchored = !!lastMs && Date.now() - lastMs > (range.days * 86400_000) / 2;
+    const until = new Date((anchored ? lastMs : Date.now()) + 3600_000);
+    const from = new Date(until.getTime() - range.days * 86400_000);
+    let alive = true;
+    seriesApi.bars(cur.series_id, from, until, range.interval)
+      .then(b => { if (alive) setBars(b); })
+      .catch(() => { if (alive) setBars(null); });
+    return () => { alive = false; };
+  }, [cur?.series_id, cur?.latest?.bar_ts, rangeId]);
+
   const runSim = async () => {
-    if (!cur) return;
+    if (!cur || !Number.isFinite(simPct) || simPct === 0) return;
     setSimBusy(true);
-    try { const r = await seriesApi.simulate(cur.series_id, simPct); toast(r.note); }
+    try { const r = await seriesApi.simulate(cur.series_id, simPct); setSimOut(r); toast(r.note); }
     catch (e) { toast(String(e)); }
     finally { setSimBusy(false); }
   };
@@ -210,60 +281,138 @@ export function SeriesList() {
           </div>
 
           <div className="eos-insp">
-            <div className="eos-hd">
-              <div>
-                <div className="label">{cur.instrument?.type ?? "Market series"} · {cur.symbol} · updated {ago(cur.fetch.last_at, now)}</div>
-                <h2 style={{ fontSize: 23, marginTop: 2 }}>
-                  {cur.name} <span className="mono" style={{ fontWeight: 500, color: "var(--ink-2)", marginLeft: 8 }}>{price(cur.latest?.close)}</span>
-                </h2>
-              </div>
-              <div className="row" style={{ gap: 8 }}>
-                <RefreshButton s={cur} onDone={replace} />
-                <Link className="btn btn--sm btn--ghost" to={`/series/${cur.series_id}`}>Full chart &amp; logs →</Link>
-              </div>
-            </div>
+            {(() => {
+              const l = cur.latest;
+              const maxZ = l?.max_z != null ? Math.abs(l.max_z) : null;
+              const unusual = cur.state === "moved" || (maxZ !== null && maxZ >= cur.detector.z_threshold);
+              const range = CHART_RANGES.find(r => r.id === rangeId) ?? CHART_RANGES[1];
+              const windows = l?.windows ?? [];
+              const peakW = Math.max(...windows.map(w => Math.abs(w.z ?? 0)), 0);
+              const scaleMax = Math.max(cur.detector.z_threshold * 1.4, peakW * 1.12, 1);
+              const tickPct = Math.min(92, (cur.detector.z_threshold / scaleMax) * 100);
+              const meaning = cur.theme ? themeMeaning(cur.theme).replace(/\.$/, "") : null;
+              return (
+                <>
+                  <div className="row" style={{ justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                    <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                      {unusual ? (
+                        <span className="eos-ms-pill hot">
+                          <svg width="9" height="9" viewBox="0 0 10 10" aria-hidden="true"><polygon points="5,0.8 9.2,5 5,9.2 0.8,5" fill="currentColor" /></svg>
+                          Unusual
+                        </span>
+                      ) : <StateBadge state={cur.state} />}
+                      <span className="small muted">
+                        {cur.last_finding ? `flagged ${when(cur.last_finding.at, now)}` : `updated ${ago(cur.fetch.last_at, now)}`}
+                      </span>
+                    </div>
+                    <div className="row" style={{ gap: 6 }}>
+                      <RefreshButton s={cur} onDone={replace} />
+                      <Link className="btn btn--sm btn--ghost" to={`/series/${cur.series_id}`}>Full series →</Link>
+                    </div>
+                  </div>
 
-            <div className="eos-ai">
-              <div className="eos-ai-hd"><span className="eos-spark" aria-hidden="true">✦</span>Anomaly Detector · Threshold {cur.detector.z_threshold}× normal</div>
-              <div className="eos-ai-bd">{seriesSentence(cur, now).replace(/\.+$/, "")}. {themeMeaning(cur.theme)}</div>
-              <div className="eos-ai-meta">
-                <span>Normal day: <b className="mono">{cur.latest?.typical_daily_move_pct ? `±${pctFine(cur.latest.typical_daily_move_pct).replace(/^\+/, "")}` : "—"}</b></span>
-                {cur.last_finding && <span>Last flagged: <b>{when(cur.last_finding.at, now)}</b></span>}
-                <span><FetchBadge s={cur} /></span>
-              </div>
-            </div>
+                  <div>
+                    <h2 style={{ fontSize: 22, margin: 0, letterSpacing: "-0.02em" }}>{cur.name}</h2>
+                    <div className="small muted" style={{ marginTop: 3 }}>
+                      {cur.symbol}
+                      {meaning ? ` · ${meaning}` : ""}
+                      {cur.places.length > 0 ? ` · ${cur.places.join(", ")}` : ""}
+                    </div>
+                  </div>
 
-            <div className="eos-focal">
-              <div className="row small muted" style={{ justifyContent: "space-between", marginBottom: 8 }}>
-                <strong style={{ color: "var(--ink)" }}>Recent trajectory</strong>
-                <span className="mono">1d change: {pctFine(cur.latest?.change_1d_pct)}</span>
-              </div>
-              <Spark values={cur.spark.map(p => p.close)} color={cur.state === "moved" ? "var(--high)" : "var(--accent)"} w={420} h={72} />
-            </div>
+                  <div className="eos-ms-hero">
+                    <span className="eos-ms-price">{price(l?.close)}</span>
+                    {l?.change_1d_pct != null && (
+                      <span className={`eos-ms-chg${unusual ? " hot" : ""}`}>{pctFine(l.change_1d_pct)}</span>
+                    )}
+                    <span className="small muted">
+                      today{l?.typical_daily_move_pct ? ` · usual day ±${pctFine(l.typical_daily_move_pct).replace(/^\+/, "")}` : ""}
+                    </span>
+                  </div>
 
-            {cur.latest && cur.latest.windows.length > 0 && (
-              <table className="eos-tbl">
-                <thead><tr><th>Window</th><th className="r">Change</th><th className="r">vs. Normal</th></tr></thead>
-                <tbody>
-                  {cur.latest.windows.map(w => (
-                    <tr key={w.days}>
-                      <td><strong>{w.days}d</strong></td>
-                      <td className="r mono">{pctFine(w.change_pct)}</td>
-                      <td className="r mono"><b>{w.z != null ? zx(Math.abs(w.z)) : "—"}</b></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+                  <div className="eos-ms-chart">
+                    <div className="row" style={{ justifyContent: "space-between", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+                      <div className="eos-ms-seg" role="group" aria-label="Chart period">
+                        {CHART_RANGES.map(r => (
+                          <button key={r.id} type="button" className={r.id === range.id ? "active" : ""} onClick={() => setRangeId(r.id)}>
+                            {r.label}
+                          </button>
+                        ))}
+                      </div>
+                      <span className="small muted">{range.interval === "1h" ? "Hourly" : "Daily"} closes</span>
+                    </div>
+                    <SeriesBandChart s={cur} bars={bars} unusual={unusual} />
+                    <div className="eos-ms-cfoot">
+                      <span>
+                        Shaded: usual range{l?.typical_daily_move_pct ? ` (±${pctFine(l.typical_daily_move_pct).replace(/^\+/, "")}/day)` : ""}
+                      </span>
+                      {cur.last_finding && (
+                        <Link to={`/series/${cur.series_id}#findings`}>finding → {cur.last_finding.title}</Link>
+                      )}
+                    </div>
+                  </div>
 
-            <details className="eos-fold">
-              <summary>Try a move (Sandbox simulator — live data untouched)</summary>
-              <div className="eos-fold-bd row wrap" style={{ gap: 12 }}>
-                <span>Simulated shock: <b className="mono">{simPct > 0 ? `+${simPct}%` : `${simPct}%`}</b></span>
-                <input type="range" min={-10} max={10} step={0.5} value={simPct} onChange={e => setSimPct(Number(e.target.value))} />
-                <button type="button" className="btn btn--primary btn--sm" disabled={simBusy} onClick={runSim}>{simBusy ? "Testing…" : "Run test"}</button>
-              </div>
-            </details>
+                  {windows.length > 0 && (
+                    <div className="eos-ms-ladder">
+                      <div className="eos-ms-lk">
+                        <span>How unusual</span>
+                        <span>Threshold · {cur.detector.z_threshold}×</span>
+                      </div>
+                      <div className="col" style={{ gap: 10 }}>
+                        {windows.map(w => {
+                          const z = w.z != null ? Math.abs(w.z) : null;
+                          const hot = z !== null && z >= cur.detector.z_threshold;
+                          const fillPct = z !== null ? Math.min(100, (z / scaleMax) * 100) : 0;
+                          return (
+                            <div key={w.days} className="eos-ms-lrow">
+                              <span className="eos-ms-ld">{w.days === 1 ? "1 day" : `${w.days} days`}</span>
+                              <span className="eos-ms-lc">{pctFine(w.change_pct)}</span>
+                              <div className="eos-ms-ltrack" title={z !== null ? `${zx(z)} normal (threshold ${cur.detector.z_threshold}×)` : "Not enough history"}>
+                                <div className={`eos-ms-lfill${hot ? " hot" : ""}`} style={{ width: `${fillPct}%` }} />
+                                <div className="eos-ms-ltick" style={{ left: `${tickPct}%` }} />
+                              </div>
+                              <span className={`eos-ms-lz${hot ? " hot" : ""}`}>{z !== null ? zx(z) : "—"}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="eos-ai">
+                    <div className="eos-ai-hd"><span className="eos-spark" aria-hidden="true">✦</span>Anomaly Detector · Threshold {cur.detector.z_threshold}× normal</div>
+                    <div className="eos-ai-bd">{seriesSentence(cur, now).replace(/\.+$/, "")}.{meaning ? ` ${meaning}.` : ""}</div>
+                    <div className="eos-ai-meta">
+                      <span><FetchBadge s={cur} /></span>
+                      <span>Updated {ago(cur.fetch.last_at, now)}</span>
+                    </div>
+                  </div>
+
+                  <details className="eos-fold">
+                    <summary>Try a move <span className="small muted" style={{ fontWeight: 500 }}>· Sandbox test (live prices untouched)</span></summary>
+                    <div className="eos-fold-bd col" style={{ gap: 10 }}>
+                      <div className="row wrap" style={{ gap: 8 }}>
+                        {SHOCK_PRESETS.map(p => (
+                          <button key={p} type="button" className={`eos-ms-chip${simPct === p ? " sel" : ""}`} onClick={() => setSimPct(p)}>
+                            {p > 0 ? `+${p}%` : `${p}%`}
+                          </button>
+                        ))}
+                        <label className="eos-ms-pct">
+                          <span className="sr">Simulated percent move</span>
+                          <input type="number" step="0.5" value={simPct} onChange={e => setSimPct(Number(e.target.value))}
+                            onKeyDown={e => { if (e.key === "Enter") runSim(); }} />
+                          <span>%</span>
+                        </label>
+                        <button type="button" className="btn btn--primary btn--sm" style={{ marginLeft: "auto" }} disabled={simBusy || !simPct} onClick={runSim}>
+                          {simBusy ? "Testing…" : "Test"}
+                        </button>
+                      </div>
+                      {simOut && <div className="small" style={{ color: simOut.fired ? "var(--high-ink)" : "var(--ink-2)" }}>{simOut.note}</div>}
+                    </div>
+                  </details>
+                </>
+              );
+            })()}
           </div>
         </div>
         );
