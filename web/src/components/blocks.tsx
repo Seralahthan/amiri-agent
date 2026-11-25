@@ -44,20 +44,33 @@ export function StatusPill({ tone, icon, children, title }: { tone: Tone; icon?:
   return <span className={`pill t-${tone}`} title={title}>{icon ? <Icon name={icon} /> : <span className="pd" aria-hidden="true" />}{children}</span>;
 }
 
+/** Optically balanced 10×10 geometric tone icons (replaces uneven Unicode ▲ ◆ ● ■ glyphs). */
+export function ToneGlyph({ tone, colored = false }: { tone: "good" | "bad" | "mixed" | "neutral"; colored?: boolean }) {
+  const fill = colored
+    ? tone === "bad" ? "var(--critical)" : tone === "good" ? "var(--accent)" : tone === "mixed" ? "var(--high)" : "var(--ink-3)"
+    : "currentColor";
+  return (
+    <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true" style={{ flex: "none", display: "inline-block" }}>
+      {tone === "bad" && <polygon points="5,1.2 9.2,8.6 0.8,8.6" fill={fill} />}
+      {tone === "good" && <circle cx="5" cy="5" r="3.6" fill={fill} />}
+      {tone === "mixed" && <polygon points="5,0.8 9.2,5 5,9.2 0.8,5" fill={fill} />}
+      {tone === "neutral" && <rect x="1.8" y="1.8" width="6.4" height="6.4" rx="1.2" fill={fill} />}
+    </svg>
+  );
+}
+
 /** Bad or good for the institution: unified Command screen shape + word notation (▲ bad, ● good, ◆ mixed, ■ neutral). */
 export function ImpactMarker({ adverse }: { adverse: boolean | null }) {
-  if (adverse === null) return <span className="badge b-noeffect">■ neutral</span>;
+  if (adverse === null) return <span className="badge b-noeffect"><ToneGlyph tone="neutral" />neutral</span>;
   return adverse
-    ? <span className="badge b-down">▲ bad</span>
-    : <span className="badge b-ok">● good</span>;
+    ? <span className="badge b-down"><ToneGlyph tone="bad" />bad</span>
+    : <span className="badge b-ok"><ToneGlyph tone="good" />good</span>;
 }
 
 /** An event's overall effect on the institution — consistent across Command, Events, Findings, and Studio. */
 export function TonePill({ tone }: { tone: "good" | "bad" | "mixed" | "neutral" }) {
-  if (tone === "bad") return <span className="badge b-down">▲ bad</span>;
-  if (tone === "good") return <span className="badge b-ok">● good</span>;
-  if (tone === "mixed") return <span className="badge b-warn">◆ mixed</span>;
-  return <span className="badge b-noeffect">■ neutral</span>;
+  const cls = tone === "bad" ? "b-down" : tone === "good" ? "b-ok" : tone === "mixed" ? "b-warn" : "b-noeffect";
+  return <span className={`badge ${cls}`}><ToneGlyph tone={tone} />{tone}</span>;
 }
 
 /** Highlighted deadline badge (e.g. "Open until 9 Dec", "Review by 1 Mar"). */

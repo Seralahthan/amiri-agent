@@ -1,9 +1,10 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { Icon } from "./Icon";
 
 export interface SelectOption {
   value: string;
   label: string;
+  icon?: ReactNode;
 }
 
 /** Custom Warm Alabaster + Forest Emerald dropdown replacing native OS <select> in filter bars.
@@ -54,6 +55,7 @@ export function SelectMenu({
         data-active={value !== "" ? "true" : "false"}
         onClick={() => setOpen(o => !o)}
       >
+        {current?.icon}
         <span>{current?.label ?? label}</span>
         <Icon name="chevron" className="eos-dd-chev" />
       </button>
@@ -71,7 +73,10 @@ export function SelectMenu({
                   onMouseEnter={() => setHi(idx)}
                   onClick={() => { onChange(opt.value); setOpen(false); }}
                 >
-                  <span>{opt.label}</span>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                    {opt.icon}
+                    <span>{opt.label}</span>
+                  </span>
                   {selected && <Icon name="check" className="eos-dd-chk" />}
                 </button>
               </li>

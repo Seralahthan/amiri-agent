@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { inst, type Check, type Profile } from "../api/institutions";
 import { overviewApi, type Attention, type Overview } from "../api/overview";
 import { Icon } from "../components/Icon";
+import { ToneGlyph, TonePill } from "../components/blocks";
 import { Banner, DEMOS, errText, isDown, LoadError, PageHead, PageSkeleton, useNow, useRole } from "../components/ui";
 import { ago, pct, plural, price, TIME_ZONE, ZONE_LABEL } from "../format";
 import { eventTitle } from "../plain";
@@ -13,9 +14,6 @@ import { LiveWire } from "../components/TelemetryStrip";
 
 const REFRESH_MS = 60_000;
 const RANK = { bad: 0, mixed: 1, good: 2, neutral: 3 };
-const SHAPE = { bad: "▲", good: "●", mixed: "◆", neutral: "■" };
-const TONE_CLS = { bad: "b-down", good: "b-ok", mixed: "b-warn", neutral: "b-noeffect" };
-const TONE_WORD = { bad: "Bad", good: "Good", mixed: "Mixed", neutral: "Neutral" };
 
 const longDate = (now: Date) =>
   new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: TIME_ZONE }).format(now);
@@ -177,7 +175,7 @@ export function OverviewPage() {
         <div className="eos-focal">
           <div className="row" style={{ justifyContent: "space-between", marginBottom: 10 }}>
             <span style={{ fontSize: 13.5, fontWeight: 600, color: "var(--ink)" }}>Corridor &amp; Exposure Map</span>
-            {bad.length > 0 && <span className="badge b-down">▲ {bad.length} adverse</span>}
+            {bad.length > 0 && <span className="badge b-down"><ToneGlyph tone="bad" />{bad.length} adverse</span>}
           </div>
           {profile ? (
             <ProfileMap profile={profile} height={270} compact layers={["footprint", "flows", "risks"]}
@@ -198,8 +196,10 @@ export function OverviewPage() {
                 {sortedEvents.slice(0, 4).map(e => (
                   <tr key={e.event_id} className="click" onClick={() => nav(`/events/${e.event_id}`)}>
                     <td>
-                      <span className={`badge ${TONE_CLS[e.tone]}`} style={{ marginRight: 8 }}>{SHAPE[e.tone]} {TONE_WORD[e.tone]}</span>
-                      <strong style={{ color: "var(--ink)" }}>{eventTitle(e)}</strong>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                        <TonePill tone={e.tone} />
+                        <strong style={{ color: "var(--ink)" }}>{eventTitle(e)}</strong>
+                      </span>
                     </td>
                     <td className="mono">{e.effects > 0 ? plural(e.effects, "line") : "None"}</td>
                     <td className="r small muted">{ago(e.last_finding_at, now)}</td>

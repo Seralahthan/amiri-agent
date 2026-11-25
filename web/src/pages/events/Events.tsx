@@ -6,7 +6,7 @@ import { Link } from "react-router-dom";
 import { ApiError } from "../../api/client";
 import { alertsApi } from "../../api/alerts";
 import { investigationApi, type EventDetail, type EventRow, type InvestigationStatus, type Run, type Theme } from "../../api/investigation";
-import { DeadlineBadge, Places, TonePill } from "../../components/blocks";
+import { DeadlineBadge, Places, ToneGlyph, TonePill } from "../../components/blocks";
 import { SelectMenu } from "../../components/SelectMenu";
 import { CheckBrief } from "../../components/checks";
 import { FlowFilter } from "../../components/FlowFilter";
@@ -282,10 +282,10 @@ export function EventsPage() {
         </div>
         <SelectMenu label="Filter by tone" value={toneFilter} onChange={setToneFilter} options={[
           { value: "", label: "All tones" },
-          { value: "bad", label: "▲ Bad" },
-          { value: "mixed", label: "◆ Mixed" },
-          { value: "good", label: "● Good" },
-          { value: "neutral", label: "■ Neutral" },
+          { value: "bad", label: "Bad", icon: <ToneGlyph tone="bad" colored /> },
+          { value: "mixed", label: "Mixed", icon: <ToneGlyph tone="mixed" colored /> },
+          { value: "good", label: "Good", icon: <ToneGlyph tone="good" colored /> },
+          { value: "neutral", label: "Neutral", icon: <ToneGlyph tone="neutral" colored /> },
         ]} />
         <FlowFilter label="Which events" value={show} onChange={setShow} all={{ key: "all", label: "All", count: shown.length }}
           steps={[{ key: "open", label: "Open", count: shown.filter(e => e.status === "open").length }, { key: "closed", label: "Closed", count: shown.filter(e => e.status === "closed").length }]} />
