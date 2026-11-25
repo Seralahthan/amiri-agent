@@ -8,7 +8,7 @@ import type { Installation } from "../../App";
 import { Icon } from "../../components/Icon";
 import { WithChat } from "../../components/SetupChat";
 import { changeWords, countOf, fieldWord, SECTION_ONE, valueText } from "../../components/setupFlow";
-import { PageHeader, StatusPill } from "../../components/blocks";
+import { StatusPill } from "../../components/blocks";
 import { Banner, DEMOS, InlineSkeleton, LoadError, MenuButton, Modal, PageHead, ResetModal, useRole, useToast, PageSkeleton, StatusIcon } from "../../components/ui";
 import { dayTime, plural } from "../../format";
 import { cap, words } from "../../plain";
@@ -325,14 +325,17 @@ export function InstitutionPage() {
   };
 
   return (
-    <WithChat institutionId={i.institution_id} onTrack={follow} onApplied={applied} at={{ tab }}><div className="page">
-      <PageHeader
-        title={i.name} pills={<StatusBadge status={i.status} />}
-        status={<>{i.subtype ? `${cap(words(i.subtype))} ${i.institution_type === "bank" ? "bank" : "insurer"}` : i.institution_type === "bank" ? "Bank" : "Insurer"}{i.islamic ? " (Islamic)" : ""} in <PlaceName code={i.home_country} names={profile.place_names} /> · {i.base_currency}</>}
-        help={<div className="col" style={{ gap: 8 }}>{i.summary && <p className="ph-about">{i.summary}</p>}
-          <p className="small muted">Time zone: {i.time_zone}. AMIRI Agent reads this profile to decide what matters to you: where you operate, your customers and products, your flows, rules, rivals and risks.</p></div>}
-        helpLabel="About this institution"
-        actions={<>
+    <WithChat institutionId={i.institution_id} onTrack={follow} onApplied={applied} at={{ tab }}><div className="eos-pad">
+      <div className="eos-hd">
+        <div>
+          <div className="row" style={{ gap: 8, marginBottom: 4 }}>
+            <span className="label">Governance · Institution Profile</span>
+            <StatusBadge status={i.status} />
+          </div>
+          <h1>{i.name}</h1>
+          <div className="sub">{i.subtype ? `${cap(words(i.subtype))} ${i.institution_type === "bank" ? "bank" : "insurer"}` : i.institution_type === "bank" ? "Bank" : "Insurer"}{i.islamic ? " (Islamic)" : ""} in <PlaceName code={i.home_country} names={profile.place_names} /> · {i.base_currency} · {i.time_zone}</div>
+        </div>
+        <div className="row wrap" style={{ gap: 8 }}>
           <Link className="btn" to="/institution/setup"><Icon name="check" />Guided setup</Link>
           {!archived && <button className="btn" type="button" onClick={() => setEditing(true)}><Icon name="edit" />Edit details</button>}
           <MenuButton label="More">
@@ -342,7 +345,8 @@ export function InstitutionPage() {
           {i.status === "setup" && <button className="btn btn--primary" type="button" disabled={!readiness.ready} title={readiness.ready ? "" : "Required parts are missing"} onClick={() => act("activate")}>Activate</button>}
           {archived && <button className="btn btn--primary" type="button" onClick={() => act("restore")}>Restore</button>}
           {i.status === "setup" && <button className="btn btn--danger" type="button" aria-label="Delete this institution" title="Delete this institution" onClick={() => setConfirm("delete")}><Icon name="trash" /></button>}
-        </>} />
+        </div>
+      </div>
       <div className="banners">
         {archived && <Banner kind="warn" icon="warn">Archived: the agents don't use this profile and it can't be changed. Restore it to edit.</Banner>}
         {!archived && !readiness.ready && <Banner kind="warn" icon="warn"><b>{plural(readiness.missing_required, "required part")} missing</b> before it can go live. <Link to="/institution/setup">Continue the guided setup</Link> or use the tabs.</Banner>}

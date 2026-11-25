@@ -6,7 +6,7 @@ import { studioApi, type Custom, type HeadlineIn, type Mode, type PriceMove, typ
 import { FillFromJson } from "../../components/FillFromJson";
 import { scenariosOf } from "../../components/fillJson";
 import { Icon } from "../../components/Icon";
-import { HowItWorks, PageHeader, TonePill } from "../../components/blocks";
+import { TonePill } from "../../components/blocks";
 import { Banner, Empty, LoadError, Modal, PageHead, PageSkeleton, useToast } from "../../components/ui";
 import { dayTime, plural } from "../../format";
 
@@ -107,9 +107,14 @@ export function StudioPage() {
   // one primary per view: "Replay it" when there is a recording, otherwise the first template
   const lead = ready && !current ? null : (templates ?? []).find(t => t.template_id !== "blank" && !t.unavailable)?.template_id;
   return (
-    <div className="page">
-      <PageHeader title="Scenario Studio" status="Try a what-if on your institution. Nothing touches your live data."
-        help={<HowItWorks><p>A scenario plays out in a sandbox: headlines arrive and prices move, and AMIRI Agent's monitors, market series and investigation respond as they would for real. You see the events it traces and the alerts each team would get.</p></HowItWorks>} />
+    <div className="eos-pad">
+      <div className="eos-hd">
+        <div>
+          <span className="label">Governance · Sandbox Simulation</span>
+          <h1>Scenario Studio</h1>
+          <div className="sub">Try a what-if on your institution. Nothing touches your live data.</div>
+        </div>
+      </div>
       {err != null && templates === null ? <LoadError error={err} onRetry={load} what="the Scenario Studio" /> : <>
       <div className="banners"><CurrentBanner sim={current} /></div>
       {ready && !current && <div className="card st-hero">

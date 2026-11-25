@@ -6,7 +6,6 @@ import { useLocation } from "react-router-dom";
 import { specApi, type Spec, type SpecCategory, type SpecDimension, type SpecMetric } from "../../api/spec";
 import { Icon } from "../../components/Icon";
 import { Markdown, ScrollTable } from "../../components/markdown";
-import { FactList, PageHeader } from "../../components/blocks";
 import { LoadError, PageHead, PageSkeleton } from "../../components/ui";
 import "../../styles/showcase.css";
 
@@ -177,12 +176,15 @@ export function SpecPage() {
   if (!s) return <div className="page"><PageSkeleton bare /></div>;
   const nMetrics = s.categories.reduce((n, c) => n + (c.metrics?.length ?? 0), 0);
   return (
-    <div className="page">
-      <PageHeader title={s.title} pills={<span className="chip">Version {s.spec_version}</span>}
-        status={<>The figures an institution shares, per product: {s.categories.length} categories, {nMetrics} metrics</>}
-        help={<div className="col" style={{ gap: 6 }}><p className="ph-about">The numbers an institution exposes, per product category, and how AMIRI Agent judges them when it checks a possible impact.</p>
-          <FactList items={[["Version", s.spec_version], ["Status", s.status], ["Published", s.published], ["Validation parameters", s.validation_params_version]]} /></div>}
-        helpLabel="About this spec" />
+    <div className="eos-pad">
+      <div className="eos-hd">
+        <div>
+          <span className="label">Governance · Reference Specification · v{s.spec_version}</span>
+          <h1>{s.title}</h1>
+          <div className="sub">The figures an institution shares, per product: <span className="eos-h-ok">{s.categories.length} categories</span>, <span className="eos-h-ok">{nMetrics} metrics</span>.</div>
+        </div>
+        <span className="chip">Version {s.spec_version}</span>
+      </div>
       <div className="card sp-files">
         <div className="hd"><h2>Downloads</h2><span className="small muted">each named with its version</span></div>
         <div className="bd row wrap" style={{ gap: 8 }}>{s.files.map(f => f.available

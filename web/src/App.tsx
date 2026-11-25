@@ -101,6 +101,21 @@ function useTheme() {
   return { dark, toggle };
 }
 
+const ROUTE_TITLES: [string, string][] = [
+  ["/home", "Command Overview"],
+  ["/alerts", "Alerts"],
+  ["/events", "Events"],
+  ["/findings", "Findings"],
+  ["/monitors", "Monitors"],
+  ["/radar", "Radar"],
+  ["/series", "Market Series"],
+  ["/institution", "Institution"],
+  ["/studio", "Scenario Studio"],
+  ["/spec", "Metrics Spec"],
+  ["/admin/data", "Data Connections"],
+  ["/admin/settings", "Settings"],
+];
+
 /** Each page's heading becomes the tab title; after a navigation focus moves to the page and a screen reader
  *  hears where it is (a single-page app does neither by itself). */
 function useRouteA11y(): string {
@@ -108,11 +123,14 @@ function useRouteA11y(): string {
   const first = useRef(true);
   const [said, setSaid] = useState("");
   useEffect(() => {
+    const fallback = ROUTE_TITLES.find(([p]) => pathname === p || pathname.startsWith(`${p}/`))?.[1] ?? "";
+    if (fallback) document.title = `${fallback} · AMIRI Agent`;
     const name = () => {
-      if (pathname === "/home") return "Overview";
+      if (pathname === "/home") return "Command Overview";
       const h = document.querySelector("main h1")?.cloneNode(true) as HTMLElement | undefined;  // the heading without its badges
       h?.querySelectorAll(".badge").forEach(b => b.remove());
-      return (h?.textContent ?? "").replace(/\s+/g, " ").trim();
+      const text = (h?.textContent ?? "").replace(/\s+/g, " ").trim();
+      return text || fallback;
     };
     // a table wider than its box scrolls sideways: it must be reachable and named for keyboard users
     const scrollers = () => document.querySelectorAll<HTMLElement>(".tblwrap").forEach(el => {
@@ -126,8 +144,8 @@ function useRouteA11y(): string {
       const m = document.querySelector<HTMLElement>("main");
       if (m) { if (!hash) m.scrollTop = 0; m.focus({ preventScroll: true }); }  // a #link: the page scrolls to it itself
     }, 250);
-    const t2 = setTimeout(() => { set(); scrollers(); }, 1500);  // headings that wait for data (an event's or a monitor's name)
-    const t3 = setTimeout(scrollers, 4000);
+    const t2 = setTimeout(() => { set(); scrollers(); }, 1200);  // headings that wait for data (an event's or a monitor's name)
+    const t3 = setTimeout(scrollers, 3500);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [pathname]);
   return said;
