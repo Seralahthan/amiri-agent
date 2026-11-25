@@ -387,6 +387,31 @@ details.eos-fold[open] > summary::before { transform: rotate(90deg); }
 .eos-ack-win path { stroke-dasharray: 24; stroke-dashoffset: 24; animation: eos-draw 210ms 200ms var(--ease-out) forwards; }
 @keyframes eos-draw { to { stroke-dashoffset: 0; } }
 
+/* Underline Workspace Tabs (Surveillance & Events/Findings) */
+.eos-utabs-bar {
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  border-bottom: 1px solid var(--hairline); padding: 0; margin-bottom: 4px;
+}
+.eos-utabs { display: flex; align-items: center; gap: 4px; overflow-x: auto; }
+.eos-utab {
+  display: inline-flex; align-items: center; gap: 6px; padding: 10px 14px; min-height: 42px;
+  font-size: var(--fs-sm); font-weight: 500; color: var(--ink-3); text-decoration: none;
+  border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap;
+}
+.eos-utab:hover { color: var(--ink); text-decoration: none; }
+.eos-utab.active { color: var(--ink); font-weight: 600; border-bottom-color: var(--accent-strong); }
+
+/* Force clean V2.2 topbar role switch visible on desktop (overrides legacy app.css hiding .appbar > .seg) */
+.appbar > .seg { display: inline-flex !important; border-color: var(--hairline-2); border-radius: 8px; background: var(--sunken); padding: 2px; }
+.appbar > .seg button { height: 28px; border-radius: 6px; border: 0 !important; font-size: 12px; padding: 0 10px; }
+.appbar > .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); }
+.body { grid-template-columns: 214px minmax(0, 1fr) !important; }
+.side-foot { display: none !important; }
+@media (max-width: 900px) {
+  .appbar > .seg { display: none !important; }
+  .body { grid-template-columns: 1fr !important; }
+}
+
 /* Clean Enterprise Page Container, Header, Table & Focal Surface */
 .eos-pad { padding: 22px 28px 56px; display: flex; flex-direction: column; gap: 18px; max-width: 1280px; width: 100%; margin: 0 auto; }
 .eos-hd { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }

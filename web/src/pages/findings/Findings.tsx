@@ -5,7 +5,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { ApiError } from "../../api/client";
 import { investigationApi, type EventRow, type FindingRow } from "../../api/investigation";
-import { HowItWorks, PageHeader } from "../../components/blocks";
 import { FlowFilter } from "../../components/FlowFilter";
 import { Icon } from "../../components/Icon";
 import { Banner, Empty, errText, isDown, ListSkeleton, LoadError, useNow, useToast } from "../../components/ui";
@@ -13,6 +12,7 @@ import { ago, dayTime, until } from "../../format";
 import { count, eventTitle, longWhen, signalStrength, sourceInfo, undated } from "../../plain";
 import "../../styles/findings.css";
 import { InvestigateNowButton, useInvestigationStatus } from "../events/Events";
+import { EventsFindingsTabs } from "../../components/WorkspaceTabs";
 import { DAYS, reasonText, useRecentFindings } from "./recent";
 
 type F = FindingRow & { evidence?: { headlines?: { url?: string | null }[] } | null };
@@ -120,17 +120,19 @@ export function FindingsPage() {
       <Icon name="chevron" className={`ico16 ${all[k] ? "rot" : ""}`} />{all[k] ? "Show fewer" : few ? `Show the other ${fs.length - few}` : `Show the ${fs.length}`}</button>}
   </>;
 
-  const linked = groups.reduce((s, [, fs]) => s + fs.length, 0), waiting = n("new") + n("grouped");
+  const linked = groups.reduce((s, [, fs]) => s + fs.length, 0);
   const into = groups.length === 1 && events[groups[0][0]] ? <>went into <Link className="fd-ev" to={`/events/${groups[0][0]}`}>{eventTitle(events[groups[0][0]])}</Link></> : <>went into {count(groups.length, "event")}</>;
   const shown = (show === "all" || show === "new" || show === "grouped" ? pending.length : 0) + (show === "all" || show === "linked" ? linked : 0) + (show === "all" || show === "set_aside" ? aside.length : 0);
   return (
-    <div className="page fd">
-      <PageHeader eyebrow={`The last ${DAYS} days${loadedAt ? ` · updated ${ago(loadedAt.toISOString(), now)}` : ""}`}
-        title={items === null ? "Findings" : <><span className="fd-n">{count(xs.length, "finding")}</span> came in this week</>}
-        status={items === null || !xs.length ? undefined : <>{linked ? <><b>{linked}</b> {into}</> : "None went into an event"}{aside.length ? <>; <b>{aside.length}</b> had no impact on your products</> : null}.
-          {waiting ? <> <b>{waiting}</b> {waiting === 1 ? "is" : "are"} still being looked at.</> : " Nothing is waiting to be investigated."}</>}
-        actions={<button className="btn" type="button" onClick={refresh}><Icon name="refresh" />Refresh</button>}
-        help={<HowItWorks><p>A finding is something a monitor, a market series or Radar noticed. Each one goes to the investigation, which links it to an event or finds no impact on your products. Findings from tests aren't shown.</p></HowItWorks>} />
+    <div className="eos-pad fd">
+      <EventsFindingsTabs right={<button className="btn btn--ghost btn--sm" type="button" onClick={refresh}><Icon name="refresh" />Refresh</button>} />
+      <div className="eos-hd">
+        <div>
+          <div className="label">Signal Funnel · Last {DAYS} days{loadedAt ? ` · updated ${ago(loadedAt.toISOString(), now)}` : ""}</div>
+          <h1>{items === null ? "Findings" : <>{count(xs.length, "finding")} came in this week</>}</h1>
+          {items !== null && xs.length > 0 && <p className="sub">{linked ? <><b>{linked}</b> {into}</> : "None went into an event"}{aside.length ? <>; <b>{aside.length}</b> had no impact</> : null}.</p>}
+        </div>
+      </div>
       {err != null && (items === null ? <LoadError error={err} onRetry={refresh} what="the findings" />
         : <Banner kind="warn" icon="warn">Couldn't refresh: {isDown(err) ? "AMIRI Agent didn't answer" : errText(err)}. Showing what was loaded.</Banner>)}
       {status && status.findings_waiting > 0 && status.connected && (

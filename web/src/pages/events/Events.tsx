@@ -6,7 +6,7 @@ import { Link } from "react-router-dom";
 import { ApiError } from "../../api/client";
 import { alertsApi } from "../../api/alerts";
 import { investigationApi, type EventDetail, type EventRow, type InvestigationStatus, type Run, type Theme } from "../../api/investigation";
-import { HowItWorks, PageHeader, Places, TonePill } from "../../components/blocks";
+import { Places, TonePill } from "../../components/blocks";
 import { CheckBrief } from "../../components/checks";
 import { FlowFilter } from "../../components/FlowFilter";
 import { Icon } from "../../components/Icon";
@@ -14,6 +14,7 @@ import { Empty, useNow, useRole, useToast, InlineSkeleton, LoadError } from "../
 import { ago, dayTime, until, plural } from "../../format";
 import { count, eventTitle, impactText, longWhen, metricWords, onDay, productTypeLabel, sizeTiming, sourceInfo, themeLabel } from "../../plain";
 import { useRecentFindings } from "../findings/recent";
+import { EventsFindingsTabs } from "../../components/WorkspaceTabs";
 import "../../styles/events.css";
 
 /** A theme tag in words ("Oil prices up"): the Overview and Radar use it too. */
@@ -245,14 +246,19 @@ export function EventsPage() {
     </button></li>;
 
   return (
-    <div className="page ev">
-      <PageHeader eyebrow={`Events${loadedAt ? ` · updated ${ago(loadedAt.toISOString(), now)}` : ""}`} title={headline} status={said}
-        actions={<>
-          <button className="btn" type="button" onClick={refresh}><Icon name="refresh" />Refresh</button>
-          {sim && ((events ?? []).some(e => e.world === "sandbox") || runs.some(r => r.world === "sandbox")) ? <ClearSandbox onDone={load} /> : null}
-          {toReview > 0 && <Link className="btn btn--primary" to="/alerts"><Icon name="alert" />Review {count(toReview, "alert")}</Link>}
-        </>}
-        help={<HowItWorks><p>An event is something that happened in the world, traced to the products it could hit. It stays open while news about it keeps coming, then closes.</p></HowItWorks>} />
+    <div className="eos-pad ev">
+      <EventsFindingsTabs right={<>
+        <button className="btn btn--ghost btn--sm" type="button" onClick={refresh}><Icon name="refresh" />Refresh</button>
+        {toReview > 0 && <Link className="btn btn--primary btn--sm" to="/alerts">Review {count(toReview, "alert")} →</Link>}
+      </>} />
+      <div className="eos-hd">
+        <div>
+          <div className="label">Traced Risk Events{loadedAt ? ` · updated ${ago(loadedAt.toISOString(), now)}` : ""}</div>
+          <h1>{headline}</h1>
+          {said && <p className="sub">{said}</p>}
+        </div>
+        {sim && ((events ?? []).some(e => e.world === "sandbox") || runs.some(r => r.world === "sandbox")) ? <ClearSandbox onDone={load} /> : null}
+      </div>
       {err != null && <LoadError error={err} onRetry={refresh} what="the events" />}
       {pipeline && status && <div className="ev-note" role="status">
         <Icon name="hourglass" />

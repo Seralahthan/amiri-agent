@@ -3,7 +3,7 @@ import { Link, Navigate, NavLink, Route, Routes, useLocation } from "react-route
 import { Icon } from "./components/Icon";
 import { Empty, isDown, PageHead, PageSkeleton, useNow, useRole, type Role } from "./components/ui";
 import { api, ME } from "./api/client";
-import { ago, fullNow, setZone, ZONE_LABEL } from "./format";
+import { setZone } from "./format";
 import { cap } from "./plain";
 import { OVERVIEW_EVENT, overviewApi, type Overview } from "./api/overview";
 import { SystemStatus } from "./components/SystemStatus";
@@ -33,25 +33,29 @@ import { SpecPage } from "./pages/spec/Spec";
 import { SpecPrintPage } from "./pages/spec/SpecPrint";
 import { alertsApi, type AlertSummary } from "./api/alerts";
 
-// Enterprise Risk OS navigation groups (crisp institutional hierarchy)
+// Enterprise Risk OS V2.2 navigation: 6 crisp Risk Manager workspaces (Surveillance unites Monitors/Radar/Series; Events unites Events/Findings)
 const GROUPS: [string, string[]][] = [
-  ["Risk Workspace", ["/home", "/alerts", "/events", "/findings"]],
-  ["Surveillance", ["/monitors", "/radar", "/series"]],
-  ["Governance & Sandbox", ["/institution", "/studio", "/spec"]],
+  ["Risk Workspace", ["/home", "/alerts", "/events", "/monitors"]],
+  ["Governance", ["/institution", "/studio", "/spec"]],
 ];
 
 const NAV: Record<Role, [string, string, string][]> = {
   risk_manager: [
-    ["home", "Overview", "/home"], ["alert", "Alerts", "/alerts"], ["search", "Findings", "/findings"], ["events", "Events", "/events"],
-    ["radar", "Radar", "/radar"], ["monitor", "Monitors", "/monitors"], ["series", "Market series", "/series"],
-    ["bank", "Institution", "/institution"], ["studio", "Scenario Studio", "/studio"], ["book", "Metrics Spec", "/spec"],
+    ["home", "Command", "/home"],
+    ["alert", "Alerts", "/alerts"],
+    ["events", "Events & Findings", "/events"],
+    ["radar", "Surveillance", "/monitors"],
+    ["bank", "Institution", "/institution"],
+    ["studio", "Scenario Studio", "/studio"],
+    ["book", "Metrics Spec", "/spec"],
   ],
   platform_admin: [
-    ["health", "Health", "/admin/health"], ["usage", "Usage", "/admin/usage"], ["cost", "Costs", "/admin/costs"],
-    ["data", "Data connections", "/admin/data"], ["series", "Market series", "/series"], ["bank", "Institution", "/institution"],
-    ["jobs", "Schedules and queues", "/admin/jobs"], ["studio", "Scenario Studio", "/studio"],
-    ["users", "Users and roles", "/admin/users"], ["audit", "Audit log", "/admin/audit"], ["settings", "Settings", "/admin/settings"],
+    ["data", "Data Connections", "/admin/data"],
+    ["radar", "Surveillance & Quotas", "/monitors"],
+    ["bank", "Institution Profile", "/institution"],
+    ["studio", "Scenario Studio", "/studio"],
     ["book", "Metrics Spec", "/spec"],
+    ["settings", "Settings", "/admin/settings"],
   ],
 };
 export interface Installation {
@@ -95,18 +99,6 @@ function useTheme() {
     try { localStorage.setItem("amiri.theme", next); } catch { /* private mode */ }
   };
   return { dark, toggle };
-}
-
-/** The top bar's status, from what the Overview call already says: green only when updates run and prices are fresh. */
-function pulse(o: Overview | null, now: Date, down: boolean): { tone: "ok" | "warn" | "off"; word: string; why: string } | null {
-  if (down) return { tone: "off", word: "No answer", why: "AMIRI Agent didn't answer the last check. It tries again every minute." };
-  if (!o) return null;
-  if (o.first_run || !o.services) return { tone: "off", word: "Not watching yet", why: "Set up an institution and AMIRI Agent starts watching for it." };
-  const t = o.services.tick;
-  if (!t.ok) return { tone: "off", word: "Paused", why: t.last_at ? `Updates are late: they last ran ${ago(t.last_at, now)}.` : "Updates haven't run yet, so no news or prices arrive." };
-  const late = (o.markets ?? []).filter(m => m.state === "stale");
-  if (late.length) return { tone: "warn", word: "Prices late", why: `Updates run, but ${late.map(m => m.name).join(", ")} ${late.length === 1 ? "hasn't" : "haven't"} updated${late[0].state_reason ? `: ${late[0].state_reason.replace(/^No new bar since (.+?) \(.*$/, "no new price since $1")}` : ""}.` };
-  return { tone: "ok", word: "Live", why: `Updates ran ${t.last_at ? ago(t.last_at, now) : "recently"}; prices are up to date.` };
 }
 
 /** Each page's heading becomes the tab title; after a navigation focus moves to the page and a screen reader
@@ -250,8 +242,6 @@ function Frame({ inst }: { inst: Installation }) {
     load();
     return () => { clearInterval(t); window.removeEventListener("amiri:installation", load); window.removeEventListener(OVERVIEW_EVENT, heard); };
   }, []);
-  const live = pulse(ov, now, down);
-  const [why, setWhy] = useState(false);
   const [alerts, setAlerts] = useState<AlertSummary | null>(null);
   useEffect(() => {  // the menu badge: alerts to review
     const load = () => alertsApi.summary().then(setAlerts).catch(() => {});
@@ -268,20 +258,12 @@ function Frame({ inst }: { inst: Installation }) {
           onClick={() => setMenu(m => !m)}><Icon name={menu ? "x" : "menu"} /></button>
         <Link className="brand" to="/home" aria-label="AMIRI Agent home">
           <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#0F3D2E" /><path d="M9.2 25 15 7h2l5.8 18h-3.1L16 13.1 12.3 25z" fill="#F1F5EC" /><rect x="15.4" y="13.5" width="1.2" height="10" fill="#F05A28" /><rect x="14.2" y="16" width="3.6" height="5.2" fill="#F05A28" /></svg>
-          <b>AMIRI Agent</b>
+          <b>AMIRI</b>
           <span className="inst">{inst.name ?? (inst.unreachable ? "" : "No institution profile yet")}</span>
         </Link>
-        {/* why it says Paused or Prices late: a click, a tap or keyboard focus shows it, not a hover-only tooltip */}
-        <span className="worldwrap">
-          <button type="button" className={`worldpill${live ? ` is-${live.tone}` : ""}`} aria-expanded={why} aria-describedby="world-why"
-            onClick={() => setWhy(o => !o)} onBlur={() => setWhy(false)} onKeyDown={e => e.key === "Escape" && setWhy(false)}>
-            <span className="dot" aria-hidden="true" />{live && <b className="wword">{live.word}</b>}<span className="wtxt">{fullNow(now)} {ZONE_LABEL}</span>
-          </button>
-          <span id="world-why" className={`world-why${why ? " open" : ""}`}>{live ? `${live.why} ` : ""}Times in {ZONE_LABEL}.</span>
-        </span>
         <button type="button" className="eos-cmd-btn" onClick={() => setCmdOpen(true)} aria-label="Search AMIRI Agent">
           <Icon name="search" />
-          <span>Search events, series, Radar…</span>
+          <span>Jump to alert, monitor, symbol, story…</span>
           <span className="eos-kbd">⌘K</span>
         </button>
         <span className="spacer" />
@@ -306,12 +288,18 @@ function Frame({ inst }: { inst: Installation }) {
               return items.length === 0 ? null : (
               <div key={group || "all"} className="navgroup">
                 {group && <div className="grp label" id={`g-${group.replace(/\W+/g, "")}`}>{group}</div>}
-            {items.map(([icon, label, to]) => (
-              <NavLink key={to} to={to}>
+            {items.map(([icon, label, to]) => {
+              const active = to === "/monitors"
+                ? pathname.startsWith("/monitors") || pathname.startsWith("/radar") || pathname.startsWith("/series")
+                : to === "/events"
+                  ? pathname.startsWith("/events") || pathname.startsWith("/findings")
+                  : pathname === to || pathname.startsWith(`${to}/`);
+              return (
+              <NavLink key={to} to={to} aria-current={active ? "page" : undefined}>
                 <Icon name={icon} /><span>{label}</span>
                 {to === "/alerts" && alerts?.to_review ? <span className={`count ${alerts.by_level.warning ? "hot" : ""}`}>{alerts.to_review}<span className="sr"> to review</span></span> : null}
-              </NavLink>
-            ))}
+              </NavLink>);
+            })}
               </div>);
             })}
             <SystemStatus o={ov} now={now} down={down} />

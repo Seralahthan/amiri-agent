@@ -4,14 +4,14 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ApiError } from "../../api/client";
 import { EVERY, monitorsApi, type CheckRow, type Draftable, type MonitorFinding, type MonitorRow, type MonitorsStatus, type MonitorStatus } from "../../api/monitors";
-import { HowItWorks, PageHeader, StatusPill } from "../../components/blocks";
+import { HowItWorks, StatusPill } from "../../components/blocks";
 import { FlowFilter } from "../../components/FlowFilter";
 import { Icon } from "../../components/Icon";
 import { Banner, Empty, Modal, useNow, useRole, useToast, InlineSkeleton, LoadError } from "../../components/ui";
 import { ago } from "../../format";
 import { count, everyText, MONITOR_STATUS, undated } from "../../plain";
+import { SurveillanceTabs } from "../../components/WorkspaceTabs";
 import { MonitorInspector } from "./MonitorInspector";
-import "../../styles/monitors.css";
 
 export function StatusBadge({ status }: { status: MonitorStatus }) {
   const [text, tone] = MONITOR_STATUS[status];
@@ -245,8 +245,15 @@ export function MonitorsPage() {
   const line = (m: MonitorRow, c = commonAll, waiting = false) => <MonitorLine key={m.monitor_id} m={m} run={mine(runs[m.monitor_id], m)}
     found={mine(found[m.monitor_id], m)} onChange={load} common={c} waiting={waiting} />;
   return (
-    <div className="page mon">
-      <PageHeader eyebrow="Monitors" title={title} status={said} actions={empty ? undefined : actions} help={<MonitorHelp status={status} />} />
+    <div className="eos-pad" style={{ paddingBottom: 0 }}>
+      <SurveillanceTabs right={empty ? undefined : actions} />
+      <div className="eos-hd">
+        <div>
+          <div className="label">Targeted News Watchers</div>
+          <h1>{title}</h1>
+          {said && <p className="sub">{said}</p>}
+        </div>
+      </div>
       {err != null && <LoadError error={err} onRetry={load} what="the monitors" />}
       {items === null ? (err == null && <InlineSkeleton />) : empty ? (
         <Empty icon="monitor" title="No monitors yet" actions={actions}>

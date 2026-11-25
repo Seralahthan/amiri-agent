@@ -7,10 +7,10 @@ import { inst } from "../../api/institutions";
 import { gb, radarApi, scheduleText, type RadarStatus, type RadarStory } from "../../api/radar";
 import { ChipFilter } from "../../components/FlowFilter";
 import { Icon } from "../../components/Icon";
-import { HowItWorks, PageHeader } from "../../components/blocks";
 import { Banner, Empty, ListSkeleton, LoadError, useNow, useRole, useToast } from "../../components/ui";
 import { ago, dateKey, day, dayTime, placeName, placeOrder, plural, when } from "../../format";
 import { eventTitle, undated } from "../../plain";
+import { SurveillanceTabs } from "../../components/WorkspaceTabs";
 import { themeText } from "../events/Events";
 import "../../styles/radar.css";
 
@@ -76,7 +76,6 @@ export function RadarPage() {
   const [items, setItems] = useState<RadarStory[] | null>(null);
   const [names, setNames] = useState<Record<string, string | null>>({});
   const [scope, setScope] = useState<Scope | null>(null);
-  const [instName, setInstName] = useState("your institution");
   const [show, setShow] = useState<Show>("all");
   const [where, setWhere] = useState("");
   const [query, setQuery] = useState("");
@@ -107,7 +106,7 @@ export function RadarPage() {
   useEffect(() => {
     api<{ institution_id: string; profile: boolean }>("/api/v1/installation").then(i => {
       if (!i.profile) return;
-      inst.profile(i.institution_id).then(p => { setNames(p.place_names ?? {}); setInstName(p.institution.name); }).catch(() => {});
+      inst.profile(i.institution_id).then(p => { setNames(p.place_names ?? {}); }).catch(() => {});
       inst.context(i.institution_id).then(c => setScope(c.radar_scope)).catch(() => {});
     }).catch(() => {});
   }, []);
@@ -217,21 +216,22 @@ export function RadarPage() {
   const sched = st ? scheduleText(st.every_minutes, st.run_at) : "";
   const next = st ? (new Date(st.next_run_at) <= now ? "due now" : when(st.next_run_at, now)) : "";
   return (
-    <div className="page rd">
-      <PageHeader eyebrow={st ? `Reads world news ${sched}${lr ? ` · last read ${ago(lr.finished_at ?? lr.created_at, now)}` : ""}${st.connected ? ` · next ${next}` : ""}` : undefined}
-        title={!st ? "Radar" : !lr ? "Radar hasn't read the news yet"
-          : <>Radar read <span className="rd-n read">{(lr.considered ?? 0).toLocaleString()} articles</span> and sent <span className="rd-n ok">{lr.sent ?? 0}</span> to you</>}
-        status={lr ? <>{lr.stories ?? 0} stories touched your footprint; {lr.sent ?? 0} {lr.sent === 1 ? "was" : "were"} worth investigating, the rest are kept below.</> : undefined}
-        cta={<>
-          <button className="btn btn--primary btn--lg" type="button" disabled={!!cant} title={cant ?? undefined} onClick={runNow}>
-            <Icon name={running ? "refresh" : "radar"} />{running ? "Checking…" : "Check now"}</button>
-          <span className="muted">{st?.connected ? `${left} of ${st.run_now.limit} left today` : "once Radar is connected"}</span>
-          <button className="rd-link" type="button" aria-expanded={details} onClick={() => setDetails(o => !o)}>
-            {scope ? `What it watches: ${plural(scope.places.length, "place")}${scope.actors.length ? `, ${plural(scope.actors.length, "name")}` : ""}` : "Run details"}</button>
-        </>}
-        actions={<Link className="btn" to="/institution/agents">What Radar reads from your profile</Link>}
-        help={<HowItWorks><p>Radar reads the world's news for anything that touches {instName}, using the places and names in your profile. What matters goes to the investigation like any other finding; the rest is kept here, and you can still send it.</p>
-          {st && <p>Prototype limits: Radar reads the news {sched}, and you can Check now {st.run_now.limit} times a day. English news only.</p>}</HowItWorks>} />
+    <div className="eos-pad rd">
+      <SurveillanceTabs right={<>
+        <button className="btn btn--primary btn--sm" type="button" disabled={!!cant} title={cant ?? undefined} onClick={runNow}>
+          <Icon name={running ? "refresh" : "radar"} />{running ? "Checking…" : `Check now (${left}/${st?.run_now.limit ?? 5})`}
+        </button>
+        <button className="btn btn--ghost btn--sm" type="button" aria-expanded={details} onClick={() => setDetails(o => !o)}>
+          {scope ? `✦ Watches: ${plural(scope.places.length, "place")}, ${plural(scope.actors.length, "name")} ▾` : "Run details ▾"}
+        </button>
+      </>} />
+      <div className="eos-hd">
+        <div>
+          <div className="label">{st ? `World Radar · ${sched}${lr ? ` · last ${ago(lr.finished_at ?? lr.created_at, now)}` : ""}${st.connected ? ` · next ${next}` : ""}` : "World Radar"}</div>
+          <h1>{!st ? "World Radar" : !lr ? "Radar hasn't read the news yet"
+            : <>Radar read <span className="mono">{(lr.considered ?? 0).toLocaleString()}</span> articles and sent <span style={{ color: "var(--accent-ink)" }}>{lr.sent ?? 0}</span></>}</h1>
+        </div>
+      </div>
 
       <div className="banners">
         {err != null && <LoadError error={err} onRetry={load} what="Radar" />}

@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { seriesApi, type Series, type SeriesStatus } from "../api/series";
 import { Spark } from "../components/charts";
 import { Icon } from "../components/Icon";
+import { SurveillanceTabs } from "../components/WorkspaceTabs";
 import { HowItWorks, StatusPill } from "../components/blocks";
 import { AddSeriesModal, FetchBadge, RefreshButton, seriesSentence, StateBadge, themeMeaning } from "../components/series";
 import { Banner, Empty, useNow, useRole, ListSkeleton, LoadError, useToast } from "../components/ui";
@@ -94,19 +95,17 @@ export function SeriesList() {
 
   return (
     <div className="eos-pad" style={{ paddingBottom: 0 }}>
+      <SurveillanceTabs right={isAdmin ? (
+        <button className="btn btn--primary btn--sm" type="button" onClick={() => setAdding(true)} disabled={!status || left <= 0}>
+          <Icon name="plus" />Watch symbol
+        </button>
+      ) : undefined} />
       <div className="eos-hd">
         <div>
           <div className="label">Market Surveillance · Twelve Data</div>
           <h1>
             {items === null ? "Market Series" : <>{count(items.length, "price")} watched{items.some(x => x.state === "moved") ? <> · <span style={{ color: "var(--high-ink)" }}>{items.filter(x => x.state === "moved").length} unusual</span></> : ""}</>}
           </h1>
-        </div>
-        <div className="row" style={{ gap: 8 }}>
-          {isAdmin && (
-            <button className="btn btn--primary btn--sm" type="button" onClick={() => setAdding(true)} disabled={!status || left <= 0}>
-              <Icon name="plus" />Watch symbol
-            </button>
-          )}
         </div>
       </div>
 
