@@ -643,6 +643,12 @@ input[type="range"] { accent-color: var(--accent-strong); }
   .eos-list[data-staging="true"] .eos-grp[data-focused="false"] { filter: none; opacity: 0.72; }
 }
 
+/* Scenario Studio 21-day injection timeline bar */
+.eos-tl-bar { display: flex; align-items: flex-end; gap: 3px; height: 22px; }
+.eos-tl-day { flex: 1; height: 7px; border-radius: 3px; background: var(--sunken); transition: height 180ms var(--ease-out), background 180ms var(--ease-out); }
+.eos-tl-day.news { height: 14px; background: color-mix(in oklch, var(--accent) 45%, transparent); }
+.eos-tl-day.shock { height: 20px; background: var(--critical); }
+
 /* Clean Hairline Fold (Rule 2.5 ease-out) */
 details.eos-fold { border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); }
 details.eos-fold + details.eos-fold { border-top: 0; }
