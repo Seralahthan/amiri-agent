@@ -11,6 +11,7 @@ interface CmdItem {
   keywords?: string;
   cat: string;
   to: string;
+  action?: () => void;
 }
 
 const PAGES: CmdItem[] = [
@@ -28,7 +29,9 @@ const PAGES: CmdItem[] = [
   { id: "p-settings", label: "Settings (Admin)", cat: "ADMIN", to: "/admin/settings" },
 ];
 
-export function CommandPalette({ open, onClose, ov }: { open: boolean; onClose: () => void; ov: Overview | null }) {
+export function CommandPalette({ open, onClose, ov, projector, onToggleProjector }: {
+  open: boolean; onClose: () => void; ov: Overview | null; projector?: boolean; onToggleProjector?: () => void;
+}) {
   const nav = useNavigate();
   const [q, setQ] = useState("");
   const [hi, setHi] = useState(0);
@@ -80,19 +83,35 @@ export function CommandPalette({ open, onClose, ov }: { open: boolean; onClose: 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
     if (!s) return items.slice(0, 12);
-    return items.filter(it =>
+    const hidden: CmdItem[] = [];
+    if (onToggleProjector && (s === "10m" || s.startsWith("10m "))) {
+      hidden.push({
+        id: "act-10m",
+        label: projector ? "10m Projector Text — Turn OFF" : "10m Projector Text — Turn ON",
+        sub: projector ? "Return to standard text scale" : "Enlarge typography for 10m room legibility",
+        cat: "DEMO",
+        to: "",
+        action: onToggleProjector,
+      });
+    }
+    const matches = items.filter(it =>
       it.label.toLowerCase().includes(s) ||
       (it.sub ?? "").toLowerCase().includes(s) ||
       (it.keywords ?? "").toLowerCase().includes(s) ||
       it.cat.toLowerCase().includes(s),
-    ).slice(0, 16);
-  }, [items, q]);
+    );
+    return [...hidden, ...matches].slice(0, 16);
+  }, [items, q, projector, onToggleProjector]);
 
   useEffect(() => { setHi(0); }, [q]);
 
   if (!open) return null;
 
-  const pick = (it: CmdItem) => { onClose(); nav(it.to); };
+  const pick = (it: CmdItem) => {
+    onClose();
+    if (it.action) it.action();
+    else nav(it.to);
+  };
 
   return (
     <div className="eos-cmd-overlay" role="dialog" aria-modal="true" aria-label="Search AMIRI Agent"

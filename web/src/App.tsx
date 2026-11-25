@@ -285,17 +285,13 @@ function Frame({ inst }: { inst: Installation }) {
           <span className="eos-kbd">⌘K</span>
         </button>
         <span className="spacer" />
-        <button className="btn btn--ghost btn--sm" type="button" onClick={toggleProjector}
-          aria-pressed={projector} title="Toggle larger text for 10m projector legibility">
-          {projector ? "10m Text: ON" : "10m Text"}
-        </button>
         <span className="seg" role="group" aria-label="View as">
           <button type="button" aria-pressed={role === "risk_manager"} onClick={() => setRole("risk_manager")}>Risk Manager</button>
           <button type="button" aria-pressed={role === "platform_admin"} onClick={() => setRole("platform_admin")}>Platform Admin</button>
         </span>
         <button className="btn btn--ghost btn--icon themebtn" type="button" aria-label={dark ? "Switch to light" : "Switch to dark"} onClick={toggleTheme}><Icon name={dark ? "sun" : "moon"} /></button>
       </header>
-      <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} ov={ov} />
+      <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} ov={ov} projector={projector} onToggleProjector={toggleProjector} />
       {menu && <div className="scrim" onClick={() => setMenu(false)} />}
       <div className="body">
         <aside className="side" id="sidenav" aria-label="Menu" data-open={menu}>
