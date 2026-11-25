@@ -8,6 +8,12 @@ import { ago, dayTime } from "../../format";
 import { everyText, undated } from "../../plain";
 import { MonitorActions, StatusBadge } from "./Monitors";
 
+const formatExposureId = (id: string) => {
+  const [prefix, rest] = id.includes(":") ? id.split(":", 2) : ["", id];
+  const clean = (rest || id).replace(/[-_]+/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+  return prefix ? `${prefix.replace(/\b\w/g, c => c.toUpperCase())} · ${clean}` : clean;
+};
+
 export function MonitorInspector({ row, findings, onChange }: { row: MonitorRow; findings?: MonitorFinding[]; onChange: () => void }) {
   const now = useNow(30_000);
   const toast = useToast();
@@ -95,7 +101,7 @@ export function MonitorInspector({ row, findings, onChange }: { row: MonitorRow;
             <div className="eos-ai-bd">
               <ul style={{ margin: "4px 0 0", paddingLeft: 18, display: "flex", flexDirection: "column", gap: 4 }}>
                 {priv.exposure.map((x, i) => (
-                  <li key={i}><b>{x.id}</b>{x.how_it_reaches_us ? `: ${x.how_it_reaches_us}` : ""}</li>
+                  <li key={i}><b>{formatExposureId(x.id)}</b>{x.how_it_reaches_us ? `: ${x.how_it_reaches_us}` : ""}</li>
                 ))}
               </ul>
             </div>
@@ -114,7 +120,7 @@ export function MonitorInspector({ row, findings, onChange }: { row: MonitorRow;
           )}
 
           <details className="eos-fold">
-            <summary>Recent findings ({findings?.length ?? row.findings_30d} in 30d) {row.last_check ? `· checked ${ago(row.last_check.at, now)}` : ""}</summary>
+            <summary>Recent findings ({row.findings_30d} in 30d) {row.last_check ? `· checked ${ago(row.last_check.at, now)}` : ""}</summary>
             <div className="eos-fold-bd col" style={{ gap: 6 }}>
               {findings && findings.length > 0 ? findings.slice(0, 5).map(f => {
                 const h = f.evidence?.headlines?.[0];

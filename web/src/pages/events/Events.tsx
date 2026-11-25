@@ -274,7 +274,7 @@ export function EventsPage() {
       <div className="eos-filterbar">
         <div className="eos-search">
           <Icon name="search" />
-          <input value={query} onChange={e => setQuery(e.target.value)} aria-label="Search events" placeholder="Search events, themes, or places…" />
+          <input value={query} onChange={e => setQuery(e.target.value)} aria-label="Search events" placeholder="Search events, themes, places…" />
         </div>
         <select className="eos-select" aria-label="Filter by tone" value={toneFilter} onChange={e => setToneFilter(e.target.value)}>
           <option value="">All tones</option>

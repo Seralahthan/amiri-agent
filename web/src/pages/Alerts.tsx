@@ -22,7 +22,8 @@ const isAgent = (by: string | null | undefined) => (by ?? "").toLowerCase() === 
 const changed = (a: AlertItem) => [...a.history].reverse().find(h => isAgent(h.by) && h.change !== "resolved")?.at ?? a.created_at;
 const lower = (s: string) => (/^[A-Z][a-z]/.test(s) ? s[0].toLowerCase() + s.slice(1) : s);
 const lead = (a: AlertItem) => a.effects.find(e => e.check?.alert === a.level) ?? a.effects[0];
-const what = (a: AlertItem) => { const e = lead(a); return e ? lower(impactText(e.metric_name, e.direction)) : a.title; };
+const capFirst = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
+const what = (a: AlertItem) => { const e = lead(a); return capFirst(e ? impactText(e.metric_name, e.direction) : a.title); };
 const toneBadge = (t: string) => t === "red" ? "b-down" : t === "amber" ? "b-warn" : "b-ok";
 
 function runs(a: AlertItem) {

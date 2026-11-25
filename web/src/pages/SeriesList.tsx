@@ -116,7 +116,7 @@ export function SeriesList() {
         <div className="eos-filterbar" style={{ marginBottom: 0 }}>
           <div className="eos-search">
             <Icon name="search" />
-            <input value={query} onChange={e => setQuery(e.target.value)} aria-label="Search market series" placeholder="Search symbol or instrument (USD/AED, Gold, LKR…)" />
+            <input value={query} onChange={e => setQuery(e.target.value)} aria-label="Search market series" placeholder="Search symbol (USD/AED, Gold…)" />
           </div>
           {types.length > 0 && (
             <select className="eos-select" aria-label="Filter by asset type" value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
@@ -181,7 +181,7 @@ export function SeriesList() {
 
             <div className="eos-ai">
               <div className="eos-ai-hd"><span className="eos-spark" aria-hidden="true">✦</span>Anomaly Detector · Threshold {cur.detector.z_threshold}× normal</div>
-              <div className="eos-ai-bd">{seriesSentence(cur, now)}. {themeMeaning(cur.theme)}</div>
+              <div className="eos-ai-bd">{seriesSentence(cur, now).replace(/\.+$/, "")}. {themeMeaning(cur.theme)}</div>
               <div className="eos-ai-meta">
                 <span>Normal day: <b className="mono">{cur.latest?.typical_daily_move_pct ? `±${pctFine(cur.latest.typical_daily_move_pct).replace(/^\+/, "")}` : "—"}</b></span>
                 {cur.last_finding && <span>Last flagged: <b>{when(cur.last_finding.at, now)}</b></span>}

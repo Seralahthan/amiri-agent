@@ -8,6 +8,7 @@ interface CmdItem {
   id: string;
   label: string;
   sub?: string;
+  keywords?: string;
   cat: string;
   to: string;
 }
@@ -54,6 +55,7 @@ export function CommandPalette({ open, onClose, ov }: { open: boolean; onClose: 
         id: `mk-${m.series_id}`,
         label: `${m.name}${m.close != null ? ` · ${price(m.close)}` : ""}`,
         sub: m.state === "moved" ? "Unusual move" : m.state,
+        keywords: `${m.series_id} ${m.series_id.replace(/_/g, "/")} ${m.series_id.replace(/_/g, " ")} fx currency`,
         cat: "SERIES",
         to: `/series/${m.series_id}`,
       }));
@@ -81,6 +83,7 @@ export function CommandPalette({ open, onClose, ov }: { open: boolean; onClose: 
     return items.filter(it =>
       it.label.toLowerCase().includes(s) ||
       (it.sub ?? "").toLowerCase().includes(s) ||
+      (it.keywords ?? "").toLowerCase().includes(s) ||
       it.cat.toLowerCase().includes(s),
     ).slice(0, 16);
   }, [items, q]);
@@ -115,11 +118,11 @@ export function CommandPalette({ open, onClose, ov }: { open: boolean; onClose: 
             : filtered.map((it, idx) => (
               <button key={it.id} type="button" className="eos-cmd-item" data-hi={idx === hi}
                 onMouseEnter={() => setHi(idx)} onClick={() => pick(it)}>
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {it.label}
                   {it.sub && <span style={{ color: "var(--ink-3)", marginLeft: 8, fontSize: 12 }}>{it.sub}</span>}
                 </span>
-                <span className="eos-cmd-cat">{it.cat}</span>
+                <span className="eos-cmd-cat" style={{ flexShrink: 0 }}>{it.cat}</span>
               </button>
             ))}
         </div>

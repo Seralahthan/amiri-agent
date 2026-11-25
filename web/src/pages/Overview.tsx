@@ -149,7 +149,7 @@ export function OverviewPage() {
         <Link to="/monitors" className="eos-ledger-cell">
           <span className="eos-l-step">01 · Surveillance</span>
           <span className="eos-l-val">{sources}</span>
-          <span className="eos-l-meta">{c.monitors_live} monitors · {c.series_watched} series · {s.radar.connected ? "Radar" : "Radar off"}</span>
+          <span className="eos-l-meta">{c.monitors_live} monitors · {c.series_watched} series · {s.radar.connected || o.radar.last_run_at ? "Radar" : "Radar off"}</span>
         </Link>
         <Link to="/findings" className="eos-ledger-cell">
           <span className="eos-l-step">02 · Findings (24h)</span>
@@ -197,7 +197,7 @@ export function OverviewPage() {
                       <span className={`badge ${TONE_CLS[e.tone]}`} style={{ marginRight: 8 }}>{SHAPE[e.tone]} {TONE_WORD[e.tone]}</span>
                       <strong style={{ color: "var(--ink)" }}>{eventTitle(e)}</strong>
                     </td>
-                    <td className="mono">{e.effects > 0 ? `${e.effects} lines` : "None"}</td>
+                    <td className="mono">{e.effects > 0 ? plural(e.effects, "line") : "None"}</td>
                     <td className="r small muted">{ago(e.last_finding_at, now)}</td>
                   </tr>
                 ))}
@@ -205,7 +205,7 @@ export function OverviewPage() {
                   <tr key={m.series_id} className="click" onClick={() => nav(`/series/${m.series_id}`)}>
                     <td>
                       <span className={`badge ${m.state === "moved" ? "b-warn" : "b-noeffect"}`} style={{ marginRight: 8 }}>
-                        {m.state === "moved" ? "◆ Unusual" : "FX/Mkt"}
+                        {m.state === "moved" ? "◆ Unusual" : "FX/Market"}
                       </span>
                       <strong style={{ color: "var(--ink)" }}>{m.name}</strong>
                     </td>
@@ -219,7 +219,7 @@ export function OverviewPage() {
 
           {(rest.length > 0 || recs.length > 0) && (
             <details className="eos-fold" open>
-              <summary>Pending approvals &amp; governance ({rest.length})</summary>
+              <summary>Pending approvals &amp; governance ({rest.slice(0, 4).length + recs.slice(0, 2).length})</summary>
               <div className="eos-fold-bd col" style={{ gap: 8 }}>
                 {rest.slice(0, 4).map((a, idx) => (
                   <div key={idx} className="row" style={{ gap: 10 }}>

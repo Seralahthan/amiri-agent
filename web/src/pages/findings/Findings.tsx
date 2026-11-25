@@ -139,10 +139,10 @@ export function FindingsPage() {
         <Banner kind="info" icon="info" action={<InvestigateNowButton onDone={refresh} small />}>
           <b>{count(status.findings_waiting, "finding")} waiting</b> to be investigated{nextBatch ? `: the next batch goes ${nextBatch}` : ""}.
         </Banner>)}
-      <div className="eos-filterbar">
+      <div className="eos-filterbar" style={{ marginBottom: 0 }}>
         <div className="eos-search">
           <Icon name="search" />
-          <input value={query} onChange={e => setQuery(e.target.value)} aria-label="Search findings" placeholder="Search findings, explanations, or sources…" />
+          <input value={query} onChange={e => setQuery(e.target.value)} aria-label="Search findings" placeholder="Search findings or sources…" />
         </div>
         <select className="eos-select" aria-label="Filter by source" value={sourceFilter} onChange={e => setSourceFilter(e.target.value)}>
           <option value="">All sources</option>
