@@ -247,11 +247,14 @@ body {
    ⌘K COMMAND PALETTE TRIGGER & MODAL (Rule 4.8 Instant Keyboard Nav)
    ========================================================================== */
 .eos-cmd-btn {
-  display: inline-flex; align-items: center; gap: 10px;
-  width: min(340px, 32vw); height: 34px; padding: 0 11px;
+  display: inline-flex; align-items: center; gap: 8px;
+  width: min(320px, 30vw); height: 34px; padding: 0 10px;
   border-radius: var(--r-control); border: 1px solid var(--hairline);
   background: var(--pane); color: var(--ink-3); font-size: 13px; cursor: pointer;
+  white-space: nowrap; overflow: hidden;
 }
+.eos-cmd-btn svg, .eos-search svg, .eos-telemetry svg { width: 15px; height: 15px; flex: none; }
+.eos-cmd-btn > span:first-of-type { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .eos-cmd-btn:hover { border-color: var(--hairline-2); color: var(--ink-2); }
 .eos-kbd {
   margin-left: auto; font-family: var(--font-mono); font-size: 11px;
