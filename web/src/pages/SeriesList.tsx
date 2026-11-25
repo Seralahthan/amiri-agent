@@ -1,9 +1,10 @@
 // Market Series — Master-Detail Symbol Search, Asset Type Filter & Z-Score Inspector (V2.2).
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { seriesApi, type Series, type SeriesStatus } from "../api/series";
 import { Spark } from "../components/charts";
 import { Icon } from "../components/Icon";
+import { SelectMenu } from "../components/SelectMenu";
 import { SurveillanceTabs } from "../components/WorkspaceTabs";
 import { HowItWorks, StatusPill } from "../components/blocks";
 import { AddSeriesModal, FetchBadge, RefreshButton, seriesSentence, StateBadge, themeMeaning } from "../components/series";
@@ -51,6 +52,11 @@ export function SeriesList() {
   const [typeFilter, setTypeFilter] = useState("");
   const [stateFilter, setStateFilter] = useState("");
   const [selId, setSelId] = useState<string | null>(null);
+  const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
+  const [scrollGroup, setScrollGroup] = useState<string | null>(null);
+  const hoverTimer = useRef<number>(0);
+  const scrollTimer = useRef<number>(0);
+  useEffect(() => () => { window.clearTimeout(hoverTimer.current); window.clearTimeout(scrollTimer.current); }, []);
   const [simPct, setSimPct] = useState(5);
   const [simBusy, setSimBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
@@ -119,18 +125,18 @@ export function SeriesList() {
             <input value={query} onChange={e => setQuery(e.target.value)} aria-label="Search market series" placeholder="Search symbol (USD/AED, Gold…)" />
           </div>
           {types.length > 0 && (
-            <select className="eos-select" aria-label="Filter by asset type" value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
-              <option value="">All asset types</option>
-              {types.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
+            <SelectMenu label="Filter by asset type" value={typeFilter} onChange={setTypeFilter} options={[
+              { value: "", label: "All asset types" },
+              ...types.map(t => ({ value: t, label: t })),
+            ]} />
           )}
-          <select className="eos-select" aria-label="Filter by state" value={stateFilter} onChange={e => setStateFilter(e.target.value)}>
-            <option value="">All states</option>
-            <option value="moved">Unusual move</option>
-            <option value="normal">Normal</option>
-            <option value="stale">Late / stale</option>
-            <option value="paused">Paused</option>
-          </select>
+          <SelectMenu label="Filter by state" value={stateFilter} onChange={setStateFilter} options={[
+            { value: "", label: "All states" },
+            { value: "moved", label: "Unusual move" },
+            { value: "normal", label: "Normal" },
+            { value: "stale", label: "Late / stale" },
+            { value: "paused", label: "Paused" },
+          ]} />
         </div>
       )}
 
@@ -142,27 +148,65 @@ export function SeriesList() {
         <div className="mt16"><Empty icon="series" title="No matching symbols">Try clearing your search or type filter.</Empty></div>
       )}
 
-      {cur && (
+      {cur && (() => {
+        const SERIES_GROUPS = [
+          { key: "moved", label: "Unusual moves", dot: "paused", rows: filtered.filter(s => s.state === "moved") },
+          { key: "normal", label: "Watching · Normal", dot: "live", rows: filtered.filter(s => s.state === "normal") },
+          { key: "stale", label: "Late / Stale", dot: "submitted", rows: filtered.filter(s => s.state === "stale") },
+          { key: "paused", label: "Paused", dot: "draft", rows: filtered.filter(s => s.state === "paused") },
+        ].filter(g => g.rows.length > 0);
+        const focusedGroup = hoveredGroup ?? scrollGroup;
+        const staging = SERIES_GROUPS.length > 1 && focusedGroup !== null;
+        const onSeriesScroll = (e: React.UIEvent<HTMLDivElement>) => {
+          const el = e.currentTarget;
+          const top = el.getBoundingClientRect().top + 36;
+          let active: string | null = SERIES_GROUPS[0]?.key ?? null;
+          el.querySelectorAll<HTMLElement>("[data-grp]").forEach(sec => {
+            if (sec.getBoundingClientRect().top <= top) active = sec.dataset.grp ?? active;
+          });
+          if (el.scrollTop > 0 && el.scrollHeight - el.scrollTop - el.clientHeight < 6) {
+            active = SERIES_GROUPS[SERIES_GROUPS.length - 1]?.key ?? active;
+          }
+          setScrollGroup(active);
+          window.clearTimeout(scrollTimer.current);
+          scrollTimer.current = window.setTimeout(() => setScrollGroup(null), 650);
+        };
+        return (
         <div className="eos-split">
-          <div className="eos-list">
-            {filtered.map(s => {
-              const l = s.latest;
-              const z = l?.max_z != null ? Math.abs(l.max_z) : null;
-              const unusual = s.state === "moved" || (z !== null && z >= s.detector.z_threshold);
-              return (
-                <button key={s.series_id} type="button" className="eos-row" data-selected={cur.series_id === s.series_id} onClick={() => setSelId(s.series_id)}>
-                  <div className="row" style={{ gap: 8 }}>
-                    <strong style={{ color: "var(--ink)" }}>{s.name}</strong>
-                    {z !== null ? <StatusPill tone={unusual ? "red" : "green"}>{zx(z)} σ</StatusPill> : <StateBadge state={s.state} />}
-                    <span className="mono" style={{ marginLeft: "auto", fontWeight: 700, color: "var(--ink)" }}>{price(l?.close)}</span>
-                  </div>
-                  <div className="row small muted" style={{ justifyContent: "space-between" }}>
-                    <span>{s.instrument?.type ?? s.symbol} · {ago(s.fetch.last_at, now)}</span>
-                    <span className="mono">{pctFine(l?.change_1d_pct)}</span>
-                  </div>
-                </button>
-              );
-            })}
+          <div className="eos-list" data-staging={staging ? "true" : "false"}
+            onMouseLeave={() => { window.clearTimeout(hoverTimer.current); setHoveredGroup(null); }}
+            onScroll={onSeriesScroll}>
+            {SERIES_GROUPS.map(g => (
+              <section key={g.key} className="eos-grp" data-grp={g.key}
+                data-focused={!staging || focusedGroup === g.key ? "true" : "false"}
+                onMouseEnter={() => setHoveredGroup(g.key)}>
+                <div className="eos-grp-hd">
+                  <span className={`eos-grp-dot ${g.dot}`} aria-hidden="true" />
+                  <span>{g.label}</span>
+                  <span className="eos-grp-cnt">{g.rows.length}</span>
+                </div>
+                {g.rows.map(s => {
+                  const l = s.latest;
+                  const z = l?.max_z != null ? Math.abs(l.max_z) : null;
+                  const unusual = s.state === "moved" || (z !== null && z >= s.detector.z_threshold);
+                  return (
+                    <button key={s.series_id} type="button" className="eos-row" data-selected={cur.series_id === s.series_id}
+                      onClick={() => { window.clearTimeout(hoverTimer.current); setSelId(s.series_id); }}
+                      onMouseEnter={() => { window.clearTimeout(hoverTimer.current); hoverTimer.current = window.setTimeout(() => setSelId(s.series_id), 90); }}>
+                      <div className="row" style={{ gap: 8 }}>
+                        <strong style={{ color: "var(--ink)" }}>{s.name}</strong>
+                        {z !== null ? <StatusPill tone={unusual ? "red" : "green"}>{zx(z)} σ</StatusPill> : <StateBadge state={s.state} />}
+                        <span className="mono" style={{ marginLeft: "auto", fontWeight: 700, color: "var(--ink)" }}>{price(l?.close)}</span>
+                      </div>
+                      <div className="row small muted" style={{ justifyContent: "space-between" }}>
+                        <span>{s.instrument?.type ?? s.symbol} · {ago(s.fetch.last_at, now)}</span>
+                        <span className="mono">{pctFine(l?.change_1d_pct)}</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </section>
+            ))}
           </div>
 
           <div className="eos-insp">
@@ -222,7 +266,8 @@ export function SeriesList() {
             </details>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {adding && <AddSeriesModal left={left} onClose={() => setAdding(false)}
         onAdded={s => { setAdding(false); setItems(xs => [...(xs ?? []), s]); reloadStatus(); }} />}

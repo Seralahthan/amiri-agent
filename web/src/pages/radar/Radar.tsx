@@ -7,6 +7,7 @@ import { inst } from "../../api/institutions";
 import { gb, radarApi, scheduleText, type RadarStatus, type RadarStory } from "../../api/radar";
 import { ChipFilter } from "../../components/FlowFilter";
 import { Icon } from "../../components/Icon";
+import { SelectMenu } from "../../components/SelectMenu";
 import { Banner, Empty, ListSkeleton, LoadError, useNow, useRole, useToast } from "../../components/ui";
 import { ago, dateKey, day, dayTime, placeName, placeOrder, plural, when } from "../../format";
 import { eventTitle, undated } from "../../plain";
@@ -266,14 +267,16 @@ export function RadarPage() {
           <Icon name="search" />
           <input value={query} onChange={e => { refilter(); setQuery(e.target.value); }} aria-label="Search Radar stories" placeholder="Search stories, headlines, or outlets…" />
         </div>
-        <select className="eos-select" aria-label="Filter by relevance" value={relFilter} onChange={e => { refilter(); setRelFilter(e.target.value); }}>
-          <option value="">Any relevance</option>
-          <option value="high">High relevance</option>
-          <option value="medium">Medium relevance</option>
-          <option value="low">Low relevance</option>
-        </select>
-        {placesSeen.length > 1 && <select className="eos-select" aria-label="Filter by place" value={where} onChange={e => { refilter(); setWhere(e.target.value); }}>
-          <option value="">All places ({placesSeen.length})</option>{placesSeen.map(p => <option key={p} value={p}>{place(p)}</option>)}</select>}
+        <SelectMenu label="Filter by relevance" value={relFilter} onChange={v => { refilter(); setRelFilter(v); }} options={[
+          { value: "", label: "Any relevance" },
+          { value: "high", label: "High relevance" },
+          { value: "medium", label: "Medium relevance" },
+          { value: "low", label: "Low relevance" },
+        ]} />
+        {placesSeen.length > 1 && <SelectMenu label="Filter by place" value={where} onChange={v => { refilter(); setWhere(v); }} options={[
+          { value: "", label: `All places (${placesSeen.length})` },
+          ...placesSeen.map(p => ({ value: p, label: place(p) })),
+        ]} />}
         <ChipFilter label="Which stories" value={show} onChange={k => { refilter(); setShow(k); }}
           options={SHOW.map(([key, label]) => ({ key, label, count: count(key) }))} />
       </div>
@@ -283,11 +286,13 @@ export function RadarPage() {
             actions={show === "all" && !st?.connected ? <Link className="btn" to="/institution/agents">See what Radar will read</Link> : undefined}>
             {show === "all" && !where ? (st?.connected ? "Radar hasn't found anything touching your footprint yet. Check now runs it at once." : admin ? "Connect the Radar agent (RADAR_URL) and it starts reading the news." : "Radar starts reading the news once your Platform Admin connects it.") : "No stories match these filters."}</Empty>
         : <div className="rd-split">
-          <nav className="rd-index" aria-label="Stories">
+          <nav className="rd-index" aria-label="Stories" data-staging={loaded.length > 1 && (hover !== null || inView !== null) ? "true" : "false"}>
             <ol ref={listRef} className={single.current ? "snap" : undefined} onKeyDown={keys} onScroll={scrolled} onMouseLeave={() => setHover(null)}>{loaded.map(d => {
               const { top, rest } = rowsOf(d), isOpen = open.has(d);
+              const focusedDay = hover ?? inView;
+              const stagingDay = loaded.length > 1 && focusedDay !== null;
               const tally = (["sent", "below", "dismissed"] as const).map(k => [rest.filter(s => s.status === k).length, k === "below" ? "held back" : k] as const).filter(([c]) => c);
-              return <li key={d} data-day={d} className={`rd-card ${d === countDay ? "on" : ""} ${isOpen ? "open" : ""}`} onMouseEnter={() => setHover(d)}>
+              return <li key={d} data-day={d} data-focused={!stagingDay || focusedDay === d ? "true" : "false"} className={`rd-card ${d === countDay ? "on" : ""} ${isOpen ? "open" : ""}`} onMouseEnter={() => setHover(d)}>
                 <span className="rd-day">{day((top[0] ?? rest[0]).last_seen_at)}</span>
                 <ol>{(isOpen ? [...top, ...rest] : top).map(s => <li key={s.story_id}>
                   <button type="button" data-id={s.story_id} className={s.status} title={s.title} aria-current={cur?.story_id === s.story_id} onClick={() => setSel(s.story_id)}

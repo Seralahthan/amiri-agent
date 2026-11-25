@@ -41,7 +41,7 @@ const GROUPS: [string, string[]][] = [
 ];
 
 const ADMIN_GROUPS: [string, string[]][] = [
-  ["Platform Admin", ["/admin/data", "/monitors", "/institution", "/spec", "/admin/settings"]],
+  ["Platform Admin", ["/admin/data", "/institution", "/spec", "/admin/settings"]],
   ["Try it out", ["/studio"]],
 ];
 
@@ -57,7 +57,6 @@ const NAV: Record<Role, [string, string, string][]> = {
   ],
   platform_admin: [
     ["data", "Data Connections", "/admin/data"],
-    ["radar", "Surveillance & Quotas", "/monitors"],
     ["bank", "Institution Profile", "/institution"],
     ["studio", "Scenario Studio", "/studio"],
     ["book", "Metrics Spec", "/spec"],

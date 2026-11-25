@@ -5,7 +5,7 @@ import { Link, useParams } from "react-router-dom";
 import { ApiError } from "../../api/client";
 import { investigationApi, type EventDetail } from "../../api/investigation";
 import { alertsApi, type AlertItem } from "../../api/alerts";
-import { FactList, HowItWorks, PageHeader, TechnicalDetails, TonePill } from "../../components/blocks";
+import { DeadlineBadge, FactList, HowItWorks, PageHeader, TechnicalDetails, TonePill } from "../../components/blocks";
 import { CheckPill } from "../../components/checks";
 import { Icon } from "../../components/Icon";
 import { Empty, LoadError, PageSkeleton, useRole } from "../../components/ui";
@@ -55,7 +55,7 @@ function EventPage({ d, retryAlerts }: { d: D; retryAlerts: () => void }) {
       <nav className="crumbs" aria-label="Breadcrumb"><Link to="/events">Events</Link><span aria-hidden="true">/</span><span>{d.title}</span></nav>
       <p className="evd-when"><time dateTime={e.anchor} title={longWhen(e.anchor)}>{dayTime(e.anchor)}</time>
         {n > 0 && !(d.alertsFailed && d.tone === "neutral") && <TonePill tone={d.tone} />}{e.world !== "live" && <span className="pill t-blue">Simulated</span>}
-        <span>{open ? `Open until ${onDay(e.open_until.slice(0, 10))}` : `Closed${e.closed_at ? ` ${onDay(e.closed_at.slice(0, 10))}` : ""}`}</span>
+        {open ? <DeadlineBadge>Open until {onDay(e.open_until.slice(0, 10))}</DeadlineBadge> : <span>Closed{e.closed_at ? ` ${onDay(e.closed_at.slice(0, 10))}` : ""}</span>}
         <button type="button" className="ph-help" aria-expanded={help} aria-controls={panel} onClick={() => setHelp(h => !h)}><Icon name="help" />How this works</button></p>
       <div className="evd-h1row"><h1>{d.title}</h1>
         {d.toReview > 0 && <Link className="btn btn--primary" to="/alerts"><Icon name="alert" />Review {count(d.toReview, "alert")}</Link>}</div>

@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { ApiError } from "../../api/client";
 import { monitorsApi, type Monitor, type MonitorFinding, type MonitorRow } from "../../api/monitors";
 import { Icon } from "../../components/Icon";
+import { DeadlineBadge } from "../../components/blocks";
 import { InlineSkeleton, useNow, useToast } from "../../components/ui";
 import { ago, dayTime } from "../../format";
 import { everyText, undated } from "../../plain";
@@ -45,8 +46,8 @@ export function MonitorInspector({ row, findings, onChange }: { row: MonitorRow;
         <StatusBadge status={row.status} />
         <span className="small muted">
           v{row.live_version ?? row.latest_version} · Owner <b>{row.owner}</b> · {everyText(row.check_frequency)}
-          {spec?.about.review_by ? ` · review by ${spec.about.review_by}` : ""}
         </span>
+        {spec?.about.review_by && <DeadlineBadge>Review by {spec.about.review_by}</DeadlineBadge>}
         <span className="spacer" />
         {row.status === "live" && (
           <button type="button" className="btn btn--sm" disabled={busy} onClick={runNow}>

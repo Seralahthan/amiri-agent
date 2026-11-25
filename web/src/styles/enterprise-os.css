@@ -498,17 +498,75 @@ input[type="range"] { accent-color: var(--accent-strong); }
 }
 .eos-search {
   display: inline-flex; align-items: center; gap: 7px;
-  min-width: 200px; flex: 1; max-width: 340px; height: 34px; padding: 0 10px;
+  min-width: 190px; flex: 1; max-width: 300px; height: 36px; padding: 0 11px;
   border-radius: var(--r-control); border: 1px solid var(--hairline-2);
-  background: var(--pane); color: var(--ink); font-size: var(--fs-sm);
+  background: var(--pane); color: var(--ink); font-size: 13px;
 }
-.eos-search:focus-within { border-color: var(--focus); }
-.eos-search input { border: 0; outline: 0; background: transparent; width: 100%; color: var(--ink); }
-.eos-select {
-  height: 34px; line-height: 1.2; padding: 0 10px; border-radius: var(--r-control);
-  border: 1px solid var(--hairline-2); background: var(--pane); color: var(--ink-2);
-  font-size: var(--fs-xs); font-weight: 500; cursor: pointer; vertical-align: middle;
+.eos-search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2.5px var(--accent-soft); }
+.eos-search input { border: 0; outline: 0; background: transparent; width: 100%; color: var(--ink); font-size: 13px; }
+/* Unified FlowFilter control scale matching search & dropdowns */
+.eos-filterbar .ff-all, .eos-filterbar .ff-step, .eos-filterbar .ffc-o { font-size: 13px !important; height: 36px !important; }
+
+/* Custom Styled Dropdown (SelectMenu) — Zero dead whitespace, emerald highlight, Staging the Focus */
+.eos-dd { position: relative; display: inline-flex; flex-shrink: 0; }
+.eos-dd-btn {
+  display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 10px 0 12px;
+  border-radius: var(--r-control); border: 1px solid var(--hairline-2);
+  background: var(--pane); color: var(--ink-2); font-size: 13px; font-weight: 500;
+  white-space: nowrap; cursor: pointer;
+  transition: border-color 150ms var(--ease-out), background 150ms var(--ease-out), color 150ms var(--ease-out), transform 130ms var(--ease-spring);
 }
+.eos-dd-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--surface); }
+.eos-dd-btn:active { transform: scale(0.97); }
+.eos-dd-btn[data-active="true"], .eos-dd[data-open="true"] .eos-dd-btn {
+  border-color: var(--accent); background: var(--accent-soft); color: var(--accent-ink); font-weight: 600;
+}
+.eos-dd-chev { width: 14px; height: 14px; flex: none; transform: rotate(90deg); transition: transform 180ms var(--ease-out); color: currentColor; }
+.eos-dd[data-open="true"] .eos-dd-chev { transform: rotate(270deg); }
+.eos-dd-menu {
+  position: absolute; top: calc(100% + 5px); left: 0; z-index: 60;
+  min-width: max(100%, 172px); max-height: 280px; overflow-y: auto;
+  list-style: none; margin: 0; padding: 4px;
+  background: var(--surface); border: 1px solid var(--hairline-2);
+  border-radius: var(--r-inner); box-shadow: var(--e-pop);
+  animation: eos-dd-in 160ms var(--ease-out);
+  transform-origin: top left;
+}
+@keyframes eos-dd-in {
+  from { opacity: 0; transform: translateY(-5px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+.eos-dd-opt {
+  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 7px 10px; border: 0; border-radius: 6px; background: transparent;
+  font-size: 13px; font-weight: 500; color: var(--ink-2); text-align: left; cursor: pointer; white-space: nowrap;
+  transition: background 140ms var(--ease-out), color 140ms var(--ease-out), opacity 160ms var(--ease-out);
+}
+/* Staging the Focus inside dropdown menu */
+.eos-dd-menu:hover .eos-dd-opt:not(:hover):not([data-selected="true"]) { opacity: 0.52; }
+.eos-dd-opt:hover, .eos-dd-opt[data-hi="true"] { background: var(--accent-soft); color: var(--accent); opacity: 1; }
+.eos-dd-opt[data-selected="true"] { color: var(--accent); font-weight: 600; }
+.eos-dd-chk { width: 14px; height: 14px; flex: none; color: var(--accent); stroke-width: 2.3; }
+
+/* Colored Deadline Pill ("Open until 9 Dec", "Review by 1 Mar") */
+.eos-deadline {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 9px; border-radius: var(--r-pill);
+  background: var(--high-soft); border: 1px solid var(--high-line);
+  color: var(--high-ink); font-size: 12px; font-weight: 600; white-space: nowrap;
+}
+.eos-deadline svg { width: 13px; height: 13px; flex: none; stroke-width: 2; }
+
+/* Unified Cross-Screen Typography & Selection Scale (Alerts, Events, Monitors, Radar, Series) */
+.eos-insp h2, .ev-read h2, .rd-read h2 { font-size: 20px !important; line-height: 1.25 !important; letter-spacing: -0.02em !important; font-weight: 700; }
+.eos-insp, .ev-brief, .rd-read { font-size: 13.5px !important; line-height: 1.55 !important; }
+.eos-row strong, .ev-tt, .rd-tt { font-size: 14px !important; line-height: 1.35 !important; font-weight: 600 !important; }
+.eos-row .small, .ev-isub, .rd-sub { font-size: 12px !important; line-height: 1.35 !important; }
+.ev-index button[aria-current="true"] { background: var(--pane) !important; box-shadow: inset 3px 0 0 var(--accent) !important; }
+.ev-index button[aria-current="true"] .ev-tt { color: var(--accent-ink) !important; }
+.rd-index[data-staging="true"] .rd-card[data-focused="false"] { opacity: 0.56; filter: blur(1.4px); transition: opacity 220ms var(--ease-out), filter 220ms var(--ease-out); }
+.rd-index[data-staging="true"] .rd-card[data-focused="true"] { opacity: 1; filter: blur(0); transition: opacity 220ms var(--ease-out), filter 220ms var(--ease-out); }
+.rd-index[data-staging="true"] .rd-card[data-focused="true"] .rd-day { color: var(--accent); }
 
 /* Master-Detail Split Layout — Bounded Independent Pane Scrolling (Zero Outer Page Scroll) */
 .eos-split {

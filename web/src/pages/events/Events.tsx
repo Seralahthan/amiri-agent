@@ -6,7 +6,8 @@ import { Link } from "react-router-dom";
 import { ApiError } from "../../api/client";
 import { alertsApi } from "../../api/alerts";
 import { investigationApi, type EventDetail, type EventRow, type InvestigationStatus, type Run, type Theme } from "../../api/investigation";
-import { Places, TonePill } from "../../components/blocks";
+import { DeadlineBadge, Places, TonePill } from "../../components/blocks";
+import { SelectMenu } from "../../components/SelectMenu";
 import { CheckBrief } from "../../components/checks";
 import { FlowFilter } from "../../components/FlowFilter";
 import { Icon } from "../../components/Icon";
@@ -150,7 +151,7 @@ function Brief({ e, det, failed, onRetry, checks, why, onWhy }: { e: EventRow; d
         {e.developments > 0 && <span className="muted">, and {plural(e.developments, "more report")} joined it since</span>}.</span></p>}
     {e.places.length > 0 && <p className="ev-where"><span className="ev-lab place"><Icon name="pin" /><Places codes={e.places} max={4} /></span></p>}
     <p className="ev-facts"><span>{e.themes.map(themeLabel).join(" · ")}</span>
-      <span>{e.status === "open" ? `Open until ${onDay(e.open_until)}` : `Closed ${e.closed_at ? onDay(e.closed_at) : ""}`}</span>
+      {e.status === "open" ? <DeadlineBadge>Open until {onDay(e.open_until)}</DeadlineBadge> : <span>Closed {e.closed_at ? onDay(e.closed_at) : ""}</span>}
       {checks && det && <CheckBrief e={det} />}</p>
     <Link className="ev-go" to={`/events/${e.event_id}`}>Open the event<Icon name="arrow" /></Link>
   </div>;
@@ -168,7 +169,10 @@ export function EventsPage() {
   const [sel, setSel] = useState<string | null>(null);    // the event picked with a click
   const [peek, setPeek] = useState<string | null>(null);  // the event the mouse rests on: shown until it leaves the list
   const [why, setWhy] = useState(false);                   // "Why it matters to you" opened: kept as the reader moves between events
+  const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
+  const [scrollGroup, setScrollGroup] = useState<string | null>(null);
   const timer = useRef(0);
+  const scrollTimer = useRef(0);
   const nav = useRef<HTMLElement>(null);
   // the list ends at the bottom of the screen and scrolls inside itself, like Radar's; measured from where it starts
   useLayoutEffect(() => {
@@ -276,17 +280,19 @@ export function EventsPage() {
           <Icon name="search" />
           <input value={query} onChange={e => setQuery(e.target.value)} aria-label="Search events" placeholder="Search events, themes, places…" />
         </div>
-        <select className="eos-select" aria-label="Filter by tone" value={toneFilter} onChange={e => setToneFilter(e.target.value)}>
-          <option value="">All tones</option>
-          <option value="bad">Bad for you</option>
-          <option value="mixed">Mixed</option>
-          <option value="good">Good for you</option>
-          <option value="neutral">Neutral</option>
-        </select>
+        <SelectMenu label="Filter by tone" value={toneFilter} onChange={setToneFilter} options={[
+          { value: "", label: "All tones" },
+          { value: "bad", label: "▲ Bad" },
+          { value: "mixed", label: "◆ Mixed" },
+          { value: "good", label: "● Good" },
+          { value: "neutral", label: "■ Neutral" },
+        ]} />
         <FlowFilter label="Which events" value={show} onChange={setShow} all={{ key: "all", label: "All", count: shown.length }}
           steps={[{ key: "open", label: "Open", count: shown.filter(e => e.status === "open").length }, { key: "closed", label: "Closed", count: shown.filter(e => e.status === "closed").length }]} />
-        {reach.length > 1 && <select className="eos-select" aria-label="Sort events" value={sort} onChange={e => setSort(e.target.value as Sort)}>
-          <option value="newest">Sort: Newest first</option><option value="impacts">Sort: Most possible impacts</option></select>}
+        {reach.length > 1 && <SelectMenu label="Sort events" value={sort} onChange={v => setSort(v as Sort)} options={[
+          { value: "newest", label: "Sort: Newest first" },
+          { value: "impacts", label: "Sort: Most impacts" },
+        ]} />}
         {nSim > 0 && <label className="check ev-sort"><input type="checkbox" checked={sim} onChange={e => setSim(e.target.checked)} /> Simulated ({nSim})</label>}
         <span className="spacer" />
         {!pipeline && (inProgress.length > 0 || noEvent.length > 0) && <Link className="ev-sort" to="/findings">See all findings →</Link>}
@@ -294,19 +300,44 @@ export function EventsPage() {
       {events === null ? (err == null && <InlineSkeleton />) : !rows.length || !cur ? (
         <Empty icon="events" title={show === "open" ? "No open events" : "No events here"} actions={<Link className="btn" to="/studio"><Icon name="studio" />Try a what-if in the Scenario Studio</Link>}>
           When AMIRI Agent traces news or a price move to your products, the event appears here.</Empty>
-      ) : <div className="ev-split">
-        <nav className="ev-index" aria-label="Events" ref={nav} onMouseLeave={() => { clearTimeout(timer.current); setPeek(null); }}>
-          {reach.length > 0 && <section className="hit" aria-labelledby="ev-k-hit"><h2 id="ev-k-hit">Could hit your products <span>{reach.length}</span></h2><ol>{reach.map(item)}</ol></section>}
-          {none.length > 0 && <section className="none" aria-labelledby="ev-k-none"><h2 id="ev-k-none">No impact traced <span>{none.length}</span></h2><ol>{none.map(item)}</ol></section>}
+      ) : (() => {
+        const focusedGroup = hoveredGroup ?? scrollGroup;
+        const staging = reach.length > 0 && none.length > 0 && focusedGroup !== null;
+        const onEvScroll = (e: React.UIEvent<HTMLElement>) => {
+          const el = e.currentTarget;
+          const top = el.getBoundingClientRect().top + 36;
+          let active: string | null = reach.length > 0 ? "hit" : "none";
+          el.querySelectorAll<HTMLElement>("[data-grp]").forEach(sec => {
+            if (sec.getBoundingClientRect().top <= top) active = sec.dataset.grp ?? active;
+          });
+          setScrollGroup(active);
+          window.clearTimeout(scrollTimer.current);
+          scrollTimer.current = window.setTimeout(() => setScrollGroup(null), 650);
+        };
+        return <div className="eos-split">
+        <nav className="eos-list ev-index" aria-label="Events" ref={nav} data-staging={staging ? "true" : "false"}
+          onMouseLeave={() => { clearTimeout(timer.current); setPeek(null); setHoveredGroup(null); }}
+          onScroll={onEvScroll}>
+          {reach.length > 0 && <section className="eos-grp hit" data-grp="hit" data-focused={!staging || focusedGroup === "hit" ? "true" : "false"}
+            onMouseEnter={() => setHoveredGroup("hit")} aria-labelledby="ev-k-hit">
+            <div className="eos-grp-hd" id="ev-k-hit"><span className="eos-grp-dot" style={{ background: "var(--critical)" }} /><span>Could hit your products</span><span className="eos-grp-cnt">{reach.length}</span></div>
+            <ol>{reach.map(item)}</ol>
+          </section>}
+          {none.length > 0 && <section className="eos-grp none" data-grp="none" data-focused={!staging || focusedGroup === "none" ? "true" : "false"}
+            onMouseEnter={() => setHoveredGroup("none")} aria-labelledby="ev-k-none">
+            <div className="eos-grp-hd" id="ev-k-none"><span className="eos-grp-dot draft" /><span>No impact traced</span><span className="eos-grp-cnt">{none.length}</span></div>
+            <ol>{none.map(item)}</ol>
+          </section>}
         </nav>
-        <article className="ev-read" aria-labelledby="ev-read-h">
+        <article className="eos-insp ev-read" aria-labelledby="ev-read-h">
           <p className="ev-when"><time dateTime={cur.anchor} title={longWhen(cur.anchor)}>{dayTime(cur.anchor)}</time>
             {cur.hypotheses > 0 && <TonePill tone={cur.tone} />}
             {cur.world !== "live" && <span className="pill t-blue">Simulated</span>}</p>
           <h2 id="ev-read-h">{title(cur)}</h2>
           <Brief e={cur} det={ev[cur.event_id]} failed={failed.has(cur.event_id)} onRetry={() => setRetry(n => n + 1)} checks={checks} why={why} onWhy={setWhy} />
         </article>
-      </div>}
+      </div>;
+      })()}
       {admin && <Runs runs={runs} onChange={load} />}
     </div>
   );

@@ -1,11 +1,12 @@
 // Alerts — Master-Detail Split Triage Workspace (V2.2: Zero screen bouncing, inline search, ✦ Investigation Agent).
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { ApiError } from "../api/client";
 import { alertsApi, type AlertItem, type AlertSummary } from "../api/alerts";
 import { investigationApi, type EventDetail } from "../api/investigation";
 import { FlowFilter } from "../components/FlowFilter";
 import { Icon } from "../components/Icon";
+import { SelectMenu } from "../components/SelectMenu";
 import { Empty, ListSkeleton, LoadError, useNow, useToast } from "../components/ui";
 import { ago, dayTime } from "../format";
 import {
@@ -44,6 +45,8 @@ export function AlertsPage() {
   const [query, setQuery] = useState("");
   const [levelFilter, setLevelFilter] = useState("");
   const [selId, setSelId] = useState<string | null>(null);
+  const hoverTimer = useRef<number>(0);
+  useEffect(() => () => window.clearTimeout(hoverTimer.current), []);
   const [items, setItems] = useState<AlertItem[] | null>(null);
   const [sum, setSum] = useState<AlertSummary | null>(null);
   const [events, setEvents] = useState<Record<string, EventDetail>>({});
@@ -124,17 +127,17 @@ export function AlertsPage() {
           <Icon name="search" />
           <input value={query} onChange={e => setQuery(e.target.value)} aria-label="Search alerts" placeholder="Search alerts, products, teams, or events…" />
         </div>
-        <select className="eos-select" aria-label="Filter by severity" value={levelFilter} onChange={e => setLevelFilter(e.target.value)}>
-          <option value="">All severities</option>
-          <option value="adverse">Confirmed</option>
-          <option value="developing">Showing early signs</option>
-          <option value="warning">Early warning</option>
-        </select>
+        <SelectMenu label="Filter by severity" value={levelFilter} onChange={setLevelFilter} options={[
+          { value: "", label: "All severities" },
+          { value: "adverse", label: "Confirmed" },
+          { value: "developing", label: "Showing early signs" },
+          { value: "warning", label: "Early warning" },
+        ]} />
         {sum && sum.all_teams.length > 1 && (
-          <select className="eos-select" aria-label="Filter by team" value={team} onChange={e => setTeam(e.target.value)}>
-            <option value="">All teams ({sum.all_teams.length})</option>
-            {sum.all_teams.map(t => <option key={t} value={t}>{t} ({nAt(show, t)})</option>)}
-          </select>
+          <SelectMenu label="Filter by team" value={team} onChange={setTeam} options={[
+            { value: "", label: `All teams (${sum.all_teams.length})` },
+            ...sum.all_teams.map(t => ({ value: t, label: `${t} (${nAt(show, t)})` })),
+          ]} />
         )}
         <FlowFilter toned label="Which alerts" value={show} onChange={setShow} all={{ key: "all", label: "All", count: nAt("all") }}
           steps={([["new", "To review", "queued"], ["acknowledged", "Acknowledged", "held"], ["resolved", "Resolved", "done"]] as const)
@@ -146,9 +149,11 @@ export function AlertsPage() {
         : (
           <div className="eos-split">
             {/* Left Queue */}
-            <div className="eos-list">
+            <div className="eos-list" onMouseLeave={() => window.clearTimeout(hoverTimer.current)}>
               {queue.map(a => (
-                <button key={a.alert_id} type="button" className="eos-row" data-selected={cur?.alert_id === a.alert_id} onClick={() => setSelId(a.alert_id)}>
+                <button key={a.alert_id} type="button" className="eos-row" data-selected={cur?.alert_id === a.alert_id}
+                  onClick={() => { window.clearTimeout(hoverTimer.current); setSelId(a.alert_id); }}
+                  onMouseEnter={() => { window.clearTimeout(hoverTimer.current); hoverTimer.current = window.setTimeout(() => setSelId(a.alert_id), 90); }}>
                   <div className="row" style={{ gap: 8 }}>
                     <span className={`badge ${toneBadge(LEVEL_TONE[a.level])}`}>{LEVEL_LABEL[a.level]}</span>
                     <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--ink-2)" }}>{a.owner}</span>

@@ -44,17 +44,25 @@ export function StatusPill({ tone, icon, children, title }: { tone: Tone; icon?:
   return <span className={`pill t-${tone}`} title={title}>{icon ? <Icon name={icon} /> : <span className="pd" aria-hidden="true" />}{children}</span>;
 }
 
-/** Bad or good for the institution: a word and a shape, never a bare arrow (a rise can be either). */
+/** Bad or good for the institution: unified Command screen shape + word notation (▲ bad, ● good, ◆ mixed, ■ neutral). */
 export function ImpactMarker({ adverse }: { adverse: boolean | null }) {
-  if (adverse === null) return <StatusPill tone="grey">Unclear for you</StatusPill>;
-  return adverse ? <StatusPill tone="red" icon="bad">Bad for you</StatusPill> : <StatusPill tone="green" icon="good">Good for you</StatusPill>;
+  if (adverse === null) return <span className="badge b-noeffect">■ neutral</span>;
+  return adverse
+    ? <span className="badge b-down">▲ bad</span>
+    : <span className="badge b-ok">● good</span>;
 }
 
-/** An event's overall effect on the institution. */
+/** An event's overall effect on the institution — consistent across Command, Events, Findings, and Studio. */
 export function TonePill({ tone }: { tone: "good" | "bad" | "mixed" | "neutral" }) {
-  if (tone === "bad") return <ImpactMarker adverse={true} />;
-  if (tone === "good") return <ImpactMarker adverse={false} />;
-  return tone === "mixed" ? <StatusPill tone="amber">Mixed for you</StatusPill> : <StatusPill tone="grey">Neutral for you</StatusPill>;
+  if (tone === "bad") return <span className="badge b-down">▲ bad</span>;
+  if (tone === "good") return <span className="badge b-ok">● good</span>;
+  if (tone === "mixed") return <span className="badge b-warn">◆ mixed</span>;
+  return <span className="badge b-noeffect">■ neutral</span>;
+}
+
+/** Highlighted deadline badge (e.g. "Open until 9 Dec", "Review by 1 Mar"). */
+export function DeadlineBadge({ children }: { children: ReactNode }) {
+  return <span className="eos-deadline"><Icon name="clock" /><span>{children}</span></span>;
 }
 
 export interface Tile { value: ReactNode; label: string; sub?: ReactNode; tone?: Tone; icon?: string }

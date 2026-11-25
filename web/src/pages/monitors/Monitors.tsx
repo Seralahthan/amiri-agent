@@ -7,6 +7,7 @@ import { EVERY, monitorsApi, type CheckRow, type Draftable, type MonitorFinding,
 import { HowItWorks, StatusPill } from "../../components/blocks";
 import { FlowFilter } from "../../components/FlowFilter";
 import { Icon } from "../../components/Icon";
+import { SelectMenu } from "../../components/SelectMenu";
 import { Banner, Empty, Modal, useNow, useRole, useToast, InlineSkeleton, LoadError } from "../../components/ui";
 import { ago } from "../../format";
 import { count, everyText, MONITOR_STATUS, undated } from "../../plain";
@@ -313,10 +314,10 @@ export function MonitorsPage() {
               <Icon name="search" />
               <input value={query} onChange={e => setQuery(e.target.value)} aria-label="Search monitors" placeholder="Search monitors, owners, or criteria…" />
             </div>
-            {owners.length > 1 && <select className="eos-select" aria-label="Filter by owner" value={ownerFilter} onChange={e => setOwnerFilter(e.target.value)}>
-              <option value="">All owners ({owners.length})</option>
-              {owners.map(o => <option key={o} value={o}>{o}</option>)}
-            </select>}
+            {owners.length > 1 && <SelectMenu label="Filter by owner" value={ownerFilter} onChange={setOwnerFilter} options={[
+              { value: "", label: `All owners (${owners.length})` },
+              ...owners.map(o => ({ value: o, label: o })),
+            ]} />}
             <FlowFilter toned label="Which monitors" value={show} onChange={setShow} all={{ key: "all", label: "All", count: xs.length }}
               steps={[{ key: "draft", label: "Draft", count: n("draft"), state: "queued" }, { key: "submitted", label: "Waiting for approval", count: n("submitted"), state: "queued" },
                 [{ key: "live", label: "Live", count: n("live"), state: "done" }, { key: "paused", label: "Paused", count: n("paused") },
