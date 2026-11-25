@@ -134,8 +134,14 @@ export function OverviewPage() {
       {/* ✦ Multi-Agent Synthesis Strip */}
       <div className="eos-ai">
         <div className="eos-ai-hd"><span className="eos-spark" aria-hidden="true">✦</span>AMIRI Multi-Agent Synthesis · Why today matters to {i.name}</div>
-        <div className="eos-ai-bd">
-          <b>Radar Agent</b> ({sentRadar} sent), <b>Monitor Agent</b> ({c.monitors_live} live), and <b>Market Series</b> ({c.series_watched} watched) surfaced <b>{plural(f24, "finding")}</b> in the last 24h. <b>Investigation Agent</b> traced <b>{plural(c.effects_to_watch, "product impact")}</b> across <b>{plural(c.open_events, "open event")}</b>.
+        <div className="eos-ai-bd" style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          <div>
+            <b>Radar Agent</b> ({sentRadar} sent), <b>Monitor Agent</b> ({c.monitors_live} live), and <b>Market Series</b> ({c.series_watched} watched) surfaced <b>{plural(f24, "finding")}</b> in the last 24h.
+          </div>
+          <div>
+            <span style={{ color: "var(--accent)", fontWeight: 700, marginRight: 6 }} aria-hidden="true">↳</span>
+            <b>Investigation Agent</b> traced <b>{plural(c.effects_to_watch, "product impact")}</b> across <b>{plural(c.open_events, "open event")}</b>.
+          </div>
         </div>
       </div>
 
