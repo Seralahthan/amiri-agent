@@ -9,6 +9,7 @@ import { ago, pct, plural, price, TIME_ZONE, ZONE_LABEL } from "../format";
 import { eventTitle } from "../plain";
 import { ProfileMap } from "./institution/ProfileMap";
 import { TAB_OF_SECTION } from "./institution/InstitutionPage";
+import { LiveWire } from "../components/TelemetryStrip";
 
 const REFRESH_MS = 60_000;
 const RANK = { bad: 0, mixed: 1, good: 2, neutral: 3 };
@@ -167,6 +168,9 @@ export function OverviewPage() {
           <span className="eos-l-meta">{alerts > 0 ? "Alerts waiting for teams" : "All caught up"}</span>
         </Link>
       </div>
+
+      {/* Live Signal Wire (Option A: directly below the 4-stage ledger on Command Overview) */}
+      <LiveWire ov={o} now={now} down={err != null && isDown(err)} />
 
       {/* Clean 2-Column Editorial Grid: Left = Focal Corridor Map, Right = Priority Signals Table + Governance */}
       <div className="eos-cmd-grid">

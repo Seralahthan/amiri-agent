@@ -326,19 +326,39 @@ body {
 }
 
 /* ==========================================================================
-   ALIVE TOPBAR NEWS & RISK FEED TICKER (Rule 1.6 Masked Edges · Pause on Hover)
+   STATIONARY TOPBAR OPERATIONAL SCHEDULE STRIP + OPTION A COMMAND LIVE WIRE
    ========================================================================== */
-.eos-ticker {
-  flex: 1; min-width: 0; height: 34px;
-  display: flex; align-items: center; gap: 0;
-  border-radius: var(--r-control); border: 1px solid var(--hairline);
-  background: var(--pane); overflow: hidden;
+.eos-sched {
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; gap: 10px;
+  overflow-x: auto; overflow-y: hidden; scrollbar-width: none;
+  font-size: 12px; color: var(--ink-3);
 }
+.eos-sched::-webkit-scrollbar { display: none; }
+.eos-sched-item {
+  display: inline-flex; align-items: center; gap: 5px;
+  color: var(--ink-3); text-decoration: none; white-space: nowrap; flex-shrink: 0;
+  padding: 4px 6px; border-radius: 6px;
+  transition: background 140ms var(--ease-out), color 140ms var(--ease-out);
+}
+.eos-sched-item:hover { background: var(--hover-bg); color: var(--ink); text-decoration: none; }
+.eos-sched-item svg { width: 13.5px; height: 13.5px; flex: none; color: var(--accent); stroke-width: 2; }
+.eos-sched-item b { color: var(--ink); font-weight: 600; }
+.eos-sched-item .mono { color: var(--ink-2); font-size: 11.5px; }
+.eos-sched-div { width: 1px; height: 12px; background: var(--hairline-2); flex-shrink: 0; }
+
+.eos-ticker {
+  flex: 1; min-width: 0; height: 36px;
+  display: flex; align-items: center; gap: 0;
+  border-radius: var(--r-inner); border: 1px solid var(--accent-line);
+  background: var(--surface); overflow: hidden;
+}
+.eos-wire { flex: none; width: 100%; }
 .eos-tick-badge {
   display: inline-flex; align-items: center; gap: 6px;
-  padding: 0 10px; height: 100%; flex-shrink: 0;
-  border-right: 1px solid var(--hairline); background: var(--surface);
-  font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; color: var(--ink-2);
+  padding: 0 12px; height: 100%; flex-shrink: 0;
+  border-right: 1px solid var(--accent-line); background: var(--accent-soft);
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.07em; color: var(--accent-ink);
   text-decoration: none; white-space: nowrap;
 }
 .eos-tick-badge:hover { color: var(--accent); text-decoration: none; }
@@ -632,7 +652,7 @@ details.eos-fold[open] > summary::before { transform: rotate(90deg); }
   .appbar { grid-column: 1; grid-row: 1; padding: 0 12px; }
   .main { grid-column: 1; grid-row: 2; }
   .eos-mob-brand { display: inline-flex; }
-  .eos-ticker { display: none; }
+  .eos-sched { display: none; }
   .side { grid-column: 1; grid-row: 1 / -1; height: 100dvh; }
 }
 
