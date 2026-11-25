@@ -76,24 +76,61 @@ export type D = ReturnType<typeof derive>;
 export const forYou = (d: D) => d.allBad ? (d.e.hypotheses.length === 2 ? "both bad for you" : "all bad for you")
   : d.nBad && d.nGood ? `${d.nBad} bad and ${d.nGood} good for you` : d.nBad ? "bad for you" : d.nGood ? "good for you" : "";
 
-/** Where the event has got to. A green tick only where a person finished the step; the agent's own steps are plain dots,
- *  steps waiting on people amber. */
+/** Framed collapsible Team Card matching Institution's tinted-header + emerald-rail grammar. */
+export function TeamCard({ owner, count: n, status, waiting, noLink, children }: {
+  owner: string; count: number; status?: string; waiting?: boolean; noLink?: boolean; children: ReactNode;
+}) {
+  const [collapsed, setCollapsed] = useState(false);
+  return (
+    <div className={`card eos-sec-card${collapsed ? " is-collapsed" : ""}`}>
+      <div className="hd">
+        <button type="button" className="eos-sec-toggle" aria-expanded={!collapsed} onClick={() => setCollapsed(c => !c)}>
+          <span className={`eos-sec-chev-wrap${collapsed ? " is-closed" : ""}`} aria-hidden="true">
+            <svg className={`eos-sec-chev${collapsed ? " is-closed" : ""}`} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4.5 6.2 8 9.8l3.5-3.6" />
+            </svg>
+          </span>
+          <h2 style={{ textTransform: "none", letterSpacing: "-0.01em", fontSize: 13.5 }}>{owner}</h2>
+          <span className={`eos-sec-cnt${collapsed ? " is-closed" : ""}`}>{n}</span>
+        </button>
+        <span className="spacer" />
+        {status && <span className={`evd-team-st${waiting ? " wait" : ""}`}>{status}</span>}
+        {!noLink && <Link className="btn btn--sm btn--ghost" to="/alerts">Alerts →</Link>}
+      </div>
+      {!collapsed && <div className="evd-team-bd">{children}</div>}
+    </div>
+  );
+}
+
+/** Where the event has got to: 5-step framed Lifecycle Stepper. */
 export function Progress({ d }: { d: D }) {
   const { e } = d, n = e.hypotheses.length;
-  const s: { t: ReactNode; st: "agent" | "wait" | "person" | "off" | "now" }[] = [
-    { t: <>Noticed <span>{onDay(e.anchor.slice(0, 10))}</span></>, st: "agent" },
-    { t: e.run.status === "running" ? "Investigating" : "Investigated", st: e.run.status === "running" ? "now" : "agent" },
-    { t: n ? count(n, "possible impact") : "No impact found", st: "agent" },
-    d.alertsFailed ? { t: "Alerts couldn't be loaded", st: "off" }
-      : d.teams.length ? { t: <>{count(d.teams.length, "team")} alerted <span>{d.toReview ? `${d.toReview} waiting for review` : "all taken on"}</span></>, st: d.toReview ? "wait" : "person" }
-      : { t: "No alerts", st: "off" },
-    !d.validation ? { t: "Checks switched off", st: "off" }
-      : d.checked ? { t: <>{d.checked} of {n} checked{d.next && <span>next {onDay(d.next)}</span>}</>, st: d.next ? "now" : "agent" }
-      : { t: <>Checks start <span>{d.next ? `${onDay(d.next)} (${relDay(d.next)})` : "with your data"}</span></>, st: "off" },
+  const s: { label: string; sub: ReactNode; st: "agent" | "wait" | "person" | "off" | "now" }[] = [
+    { label: "Noticed", sub: onDay(e.anchor.slice(0, 10)), st: "agent" },
+    { label: e.run.status === "running" ? "Investigating" : "Investigated", sub: e.run.status === "running" ? "In progress" : "Completed", st: e.run.status === "running" ? "now" : "agent" },
+    { label: n ? count(n, "impact") : "No impact", sub: n ? count(d.products.length, "product") : "No product reach", st: "agent" },
+    d.alertsFailed ? { label: "Alerts", sub: "Couldn't load", st: "off" }
+      : d.teams.length ? { label: `${count(d.teams.length, "team")} alerted`, sub: d.toReview ? `${d.toReview} waiting review` : "All taken on", st: d.toReview ? "wait" : "person" }
+      : { label: "No alerts", sub: "None sent", st: "off" },
+    !d.validation ? { label: "Data checks", sub: "Switched off", st: "off" }
+      : d.checked ? { label: `${d.checked} of ${n} checked`, sub: d.next ? `Next ${onDay(d.next)}` : "Complete", st: d.next ? "now" : "agent" }
+      : { label: "Data checks", sub: d.next ? `${onDay(d.next)} (${relDay(d.next)})` : "With your data", st: "off" },
   ];
-  return <ol className="evd-prog" aria-label="Where this event has got to">{s.map((x, i) =>
-    <li key={i} className={`p-${x.st}`}><i aria-hidden="true">{x.st === "person" && <Icon name="check" />}</i><b>{x.t}</b>
-      <span className="sr">{x.st === "person" ? "(done by a person)" : x.st === "wait" ? "(waiting for a person)" : x.st === "now" ? "(in progress)" : x.st === "off" ? "" : "(done)"}</span></li>)}</ol>;
+  return (
+    <ol className="evd-stepper" aria-label="Where this event has got to">
+      {s.map((x, i) => (
+        <li key={i} className={`st-${x.st}`}>
+          <span className="st-dot" aria-hidden="true">
+            {x.st === "agent" || x.st === "person" ? "✓" : x.st === "wait" ? "!" : x.st === "now" ? "●" : "○"}
+          </span>
+          <div className="st-body">
+            <span className="st-t">{x.label}</span>
+            <span className="st-s">{x.sub}</span>
+          </div>
+        </li>
+      ))}
+    </ol>
+  );
 }
 
 /** One possible impact opened: why, what is watched, the check against your data; ids for the admin. */
@@ -176,7 +213,10 @@ export function Story({ d }: { d: D }) {
 export const SetAside = ({ d }: { d: D }) => <ul className="evd-aside">{d.e.set_aside.map((s, i) =>
   <li key={i}><b>{productTypeLabel(s.product_type)}</b>, {lower(angleLabel(s.angle))}: {lower(SCREENING[s.decision] ?? "no clear link")}. <span className="muted">{s.reason}</span></li>)}</ul>;
 
-/** The investigation's report, folded; this event's part of it. */
-export const Report = ({ d }: { d: D }) => <details className="evd-fold"><summary><Icon name="book" />The full investigation report
-  <span className="muted">written by AMIRI Agent</span><Icon name="chevron" className="evd-chev" /></summary>
-  <div className="evd-rep">{d.report ? <Markdown text={d.report} /> : <span className="muted">No report.</span>}</div></details>;
+/** The investigation's report, folded inside our tinted eos-fold; this event's part of it. */
+export const Report = ({ d }: { d: D }) => (
+  <details className="eos-fold">
+    <summary>Full investigation report <span className="small muted" style={{ fontWeight: 500, marginLeft: "auto" }}>AMIRI Agent</span></summary>
+    <div className="eos-fold-bd evd-rep">{d.report ? <Markdown text={d.report} /> : <span className="muted">No report.</span>}</div>
+  </details>
+);
