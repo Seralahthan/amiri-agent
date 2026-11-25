@@ -33,10 +33,16 @@ import { SpecPage } from "./pages/spec/Spec";
 import { SpecPrintPage } from "./pages/spec/SpecPrint";
 import { alertsApi, type AlertSummary } from "./api/alerts";
 
-// Enterprise Risk OS V2.2 navigation: 6 crisp Risk Manager workspaces (Surveillance unites Monitors/Radar/Series; Events unites Events/Findings)
+// Enterprise Risk OS V2.2 navigation: Risk Workspace, Governance, and Try it out
 const GROUPS: [string, string[]][] = [
   ["Risk Workspace", ["/home", "/alerts", "/events", "/monitors"]],
-  ["Governance", ["/institution", "/studio", "/spec"]],
+  ["Governance", ["/institution", "/spec"]],
+  ["Try it out", ["/studio"]],
+];
+
+const ADMIN_GROUPS: [string, string[]][] = [
+  ["Platform Admin", ["/admin/data", "/monitors", "/institution", "/spec", "/admin/settings"]],
+  ["Try it out", ["/studio"]],
 ];
 
 const NAV: Record<Role, [string, string, string][]> = {
@@ -274,30 +280,34 @@ function Frame({ inst }: { inst: Installation }) {
       <header className="appbar">
         <button className="btn btn--ghost btn--icon menubtn" type="button" aria-label="Menu" aria-expanded={menu} aria-controls="sidenav"
           onClick={() => setMenu(m => !m)}><Icon name={menu ? "x" : "menu"} /></button>
-        <Link className="brand" to="/home" aria-label="AMIRI Agent home">
+        <Link className="brand eos-mob-brand" to="/home" aria-label="AMIRI Agent home">
           <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#0F3D2E" /><path d="M9.2 25 15 7h2l5.8 18h-3.1L16 13.1 12.3 25z" fill="#F1F5EC" /><rect x="15.4" y="13.5" width="1.2" height="10" fill="#F05A28" /><rect x="14.2" y="16" width="3.6" height="5.2" fill="#F05A28" /></svg>
-          <b>AMIRI</b>
-          <span className="inst">{inst.name ?? (inst.unreachable ? "" : "No institution profile yet")}</span>
+          <b>AMIRI Agent</b>
         </Link>
         <button type="button" className="eos-cmd-btn" onClick={() => setCmdOpen(true)} aria-label="Search AMIRI Agent">
           <Icon name="search" />
-          <span>Jump to alert, monitor, symbol, story…</span>
+          <span>Search alerts, monitors, symbols…</span>
           <span className="eos-kbd">⌘K</span>
         </button>
-        <span className="spacer" />
-        <span className="seg" role="group" aria-label="View as">
-          <button type="button" aria-pressed={role === "risk_manager"} onClick={() => setRole("risk_manager")}>Risk Manager</button>
-          <button type="button" aria-pressed={role === "platform_admin"} onClick={() => setRole("platform_admin")}>Platform Admin</button>
-        </span>
+        <TelemetryStrip ov={ov} now={now} down={down} />
         <button className="btn btn--ghost btn--icon themebtn" type="button" aria-label={dark ? "Switch to light" : "Switch to dark"} onClick={toggleTheme}><Icon name={dark ? "sun" : "moon"} /></button>
       </header>
       <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} ov={ov} projector={projector} onToggleProjector={toggleProjector} />
       {menu && <div className="scrim" onClick={() => setMenu(false)} />}
       <div className="body">
         <aside className="side" id="sidenav" aria-label="Menu" data-open={menu}>
+          <div className="eos-side-top">
+            <Link className="eos-side-brand" to="/home" aria-label="AMIRI Agent home">
+              <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#0F3D2E" /><path d="M9.2 25 15 7h2l5.8 18h-3.1L16 13.1 12.3 25z" fill="#F1F5EC" /><rect x="15.4" y="13.5" width="1.2" height="10" fill="#F05A28" /><rect x="14.2" y="16" width="3.6" height="5.2" fill="#F05A28" /></svg>
+              <span className="eos-side-brand-txt">
+                <b>AMIRI Agent</b>
+                <span className="eos-side-inst">{inst.name ?? (inst.unreachable ? "" : "No institution profile yet")}</span>
+              </span>
+            </Link>
+            <SystemStatus o={ov} now={now} down={down} />
+          </div>
           <nav className="nav" aria-label="Main">
-            {role === "platform_admin" && <div className="grp label">Platform Admin</div>}
-            {(role === "risk_manager" ? GROUPS : [["", nav.map(n => n[2])] as [string, string[]]]).map(([group, paths]) => {
+            {(role === "risk_manager" ? GROUPS : ADMIN_GROUPS).map(([group, paths]) => {
               const items = nav.filter(n => paths.includes(n[2]));
               return items.length === 0 ? null : (
               <div key={group || "all"} className="navgroup">
@@ -316,24 +326,22 @@ function Frame({ inst }: { inst: Installation }) {
             })}
               </div>);
             })}
-            <SystemStatus o={ov} now={now} down={down} />
           </nav>
-          <div className="side-user" title={ME}>
-            <span className="avatar" aria-hidden="true">{ME[0].toUpperCase()}</span>
-            <span className="col" style={{ gap: 0, minWidth: 0 }}><b>{cap(ME.split("@")[0])}</b>
-              <span className="small muted">{role === "risk_manager" ? "Risk Manager" : "Platform Admin"}</span></span>
-          </div>
-          <div className="side-foot">
-            <span className="label">View as</span>
-            <span className="seg" role="group" aria-label="View as">
+          <div className="eos-side-profile">
+            <div className="eos-side-user" title={ME}>
+              <span className="avatar" aria-hidden="true">{ME[0].toUpperCase()}</span>
+              <span className="col" style={{ gap: 0, minWidth: 0 }}>
+                <b>{cap(ME.split("@")[0])}</b>
+                <span className="small muted">{role === "risk_manager" ? "Risk Manager" : "Platform Admin"}</span>
+              </span>
+            </div>
+            <div className="eos-role-seg" role="group" aria-label="View as">
               <button type="button" aria-pressed={role === "risk_manager"} onClick={() => setRole("risk_manager")}>Risk Manager</button>
               <button type="button" aria-pressed={role === "platform_admin"} onClick={() => setRole("platform_admin")}>Platform Admin</button>
-            </span>
-            <button className="btn btn--sm" type="button" onClick={toggleTheme}><Icon name={dark ? "sun" : "moon"} />{dark ? "Light theme" : "Dark theme"}</button>
+            </div>
           </div>
         </aside>
         <main className="main" id="main" tabIndex={-1}>
-          <TelemetryStrip ov={ov} now={now} down={down} />
           {inst.notes.map(n => <div key={n} className="banner warn" style={{ margin: "16px 24px 0" }}><Icon name="warn" /><div>{n}</div></div>)}
           <Routes>
             <Route path="/" element={<Navigate to="/home" replace />} />
