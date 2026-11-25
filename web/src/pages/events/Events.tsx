@@ -153,7 +153,6 @@ function Brief({ e, det, failed, onRetry, checks, why, onWhy }: { e: EventRow; d
     <p className="ev-facts"><span>{e.themes.map(themeLabel).join(" · ")}</span>
       {e.status === "open" ? <DeadlineBadge>Open until {onDay(e.open_until)}</DeadlineBadge> : <span>Closed {e.closed_at ? onDay(e.closed_at) : ""}</span>}
       {checks && det && <CheckBrief e={det} />}</p>
-    <Link className="ev-go" to={`/events/${e.event_id}`}>Open the event<Icon name="arrow" /></Link>
   </div>;
 }
 
@@ -330,10 +329,15 @@ export function EventsPage() {
           </section>}
         </nav>
         <article className="eos-insp ev-read" aria-labelledby="ev-read-h">
-          <p className="ev-when"><time dateTime={cur.anchor} title={longWhen(cur.anchor)}>{dayTime(cur.anchor)}</time>
-            {cur.hypotheses > 0 && <TonePill tone={cur.tone} />}
-            {cur.world !== "live" && <span className="pill t-blue">Simulated</span>}</p>
-          <h2 id="ev-read-h">{title(cur)}</h2>
+          <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+            <div style={{ minWidth: 0 }}>
+              <p className="ev-when"><time dateTime={cur.anchor} title={longWhen(cur.anchor)}>{dayTime(cur.anchor)}</time>
+                {cur.hypotheses > 0 && <TonePill tone={cur.tone} />}
+                {cur.world !== "live" && <span className="pill t-blue">Simulated</span>}</p>
+              <h2 id="ev-read-h">{title(cur)}</h2>
+            </div>
+            <Link className="btn btn--primary btn--sm" style={{ flex: "none" }} to={`/events/${cur.event_id}`}>Open event →</Link>
+          </div>
           <Brief e={cur} det={ev[cur.event_id]} failed={failed.has(cur.event_id)} onRetry={() => setRetry(n => n + 1)} checks={checks} why={why} onWhy={setWhy} />
         </article>
       </div>;
