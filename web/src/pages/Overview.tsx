@@ -1,110 +1,66 @@
-// The Overview: the Risk Manager's first page. What is happening to
-// the institution, what needs them, and whether AMIRI Agent is working. One call; refreshed every minute.
+// Command (Overview): Cardless Enterprise Risk Posture matching V2.2 design.
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { inst, type Check, type Profile } from "../api/institutions";
 import { overviewApi, type Attention, type Overview } from "../api/overview";
-import { monitorsApi, type MonitorRow } from "../api/monitors";
-import { scheduleText } from "../api/radar";
-import { HowItWorks, PageHeader } from "../components/blocks";
-import type { SeriesState } from "../api/series";
-import { Spark } from "../components/charts";
 import { Icon } from "../components/Icon";
-import { Banner, CountUp, DEMOS, errText, isDown, LoadError, PageHead, PageSkeleton, useNow, useRole } from "../components/ui";
-import { ago, dayTime, pct, placeName, placeOrder, plural, price, TIME_ZONE, ZONE_LABEL } from "../format";
-import { eventTitle, everyText, MONITOR_CHECK, SERIES_STATE, setAsideReason, themeLabel, undated } from "../plain";
+import { Banner, DEMOS, errText, isDown, LoadError, PageHead, PageSkeleton, useNow, useRole } from "../components/ui";
+import { ago, pct, plural, price, TIME_ZONE, ZONE_LABEL } from "../format";
+import { eventTitle } from "../plain";
 import { ProfileMap } from "./institution/ProfileMap";
 import { TAB_OF_SECTION } from "./institution/InstitutionPage";
-import { OverviewStory, Reveal, type StoryRow } from "./OverviewStory";
-import "../styles/polish-overview.css";
-import "../styles/overview-story.css";
 
 const REFRESH_MS = 60_000;
-const RANK = { bad: 0, mixed: 1, good: 2, neutral: 3 };  // what hurts first
-// every tone has a shape and a word (the map's shapes), so colour is never the only signal
+const RANK = { bad: 0, mixed: 1, good: 2, neutral: 3 };
 const SHAPE = { bad: "▲", good: "●", mixed: "◆", neutral: "■" };
-const TONE_WORD = { bad: "Bad for you", good: "Good for you", mixed: "Mixed for you", neutral: "Neutral for you" };
-const LEVEL_SHAPE: Record<Attention["level"], string> = { crit: "▲", warn: "◆", info: "●" };
-const LEVEL_WORD: Record<Attention["level"], string> = { crit: "Urgent", warn: "Check", info: "To do" };
-const SOURCE: Record<string, string> = { monitor: "News", timeseries: "Prices", radar: "Radar" };
+const TONE_CLS = { bad: "b-down", good: "b-ok", mixed: "b-warn", neutral: "b-noeffect" };
+const TONE_WORD = { bad: "Bad", good: "Good", mixed: "Mixed", neutral: "Neutral" };
 
-function greeting(now: Date): string {
-  const h = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hour12: false, timeZone: TIME_ZONE }).format(now));
-  return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
-}
-const longDate = (now: Date) => new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: TIME_ZONE }).format(now);
-
-function findingStatus(f: Overview["findings"][number]) {
-  if (f.event_id) return "in an event";
-  return { new: "waiting to be investigated", grouped: "being investigated", linked: "in an event", set_aside: `no impact found${f.reason ? `: ${setAsideReason(f.reason)}` : ""}` }[f.status] ?? f.status;
-}
-/** A server note in plain words where it uses series wording ("No new bar since …"). */
+const longDate = (now: Date) =>
+  new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: TIME_ZONE }).format(now);
 const plainNote = (t: string) => t.replace(/^(.+?): No new bar since (.+?) \(.*\)\.?$/, "$1: prices haven't updated since $2");
 
 function FirstRun({ o }: { o: Overview }) {
-  const i = o.institution;
-  const steps = [
-    { done: !!i, title: "Tell AMIRI Agent about your institution", body: "Where you operate, who your customers are, your products, flows, regulators, rivals and risks. Talk to the setup agent, or use the forms.",
-      action: <Link className={`btn${i ? " btn--primary" : ""}`} to={i ? "/institution/setup" : "/institution/new"}><Icon name="chat" />{i ? "Continue setup" : "Start setup"}</Link> },
-    { done: !!i && i.readiness.ready && i.status === "active", title: "Check it and go live",
-      body: i ? (i.readiness.ready ? "Everything required is there. Activate the profile so the agents use it." : `${plural(i.readiness.missing_required, "required item")} still missing.`) : "Once the profile has what's required, activate it.",
-      action: <Link className="btn" to="/institution/setup/review">Review</Link> },
-    { done: o.counts.monitors_live > 0, title: "Choose what to watch", body: "Draft monitors from your profile: a corridor's jobs, a regulator's rules, a rival's prices. A Risk Manager approves each one.",
-      action: <Link className="btn" to="/monitors">Monitors</Link> },
-  ];
-  return (
-    <div className="page ovx">
-      <PageHeader title="Welcome to AMIRI Agent"
-        status={i ? <>Three steps, and AMIRI Agent starts watching the world for <b className="ink">{i.name}</b>.</>
-          : <>See it work on a sample institution in one click, or set up your own.</>} />
-      {!i && <DemoCard />}
-      {!i && <h2 className="ovx-or">Or set up your own institution</h2>}
-      <div className="ov-steps">{steps.map((st, n) => {
-        const locked = n > 0 && !steps[n - 1].done && !st.done;  // a step opens once the one before it is done
-        return (
-          <div key={st.title} className={`card ov-step ${st.done ? "done" : ""} ${locked ? "locked" : ""}`}>
-            <span className="n">{st.done ? <Icon name="check" /> : n + 1}<span className="sr">{st.done ? " (done)" : locked ? " (after the step before)" : ""}</span></span>
-            <h3>{st.title}</h3>
-            <p className="small muted" style={{ margin: 0, flex: 1 }}>{st.body}</p>
-            <div className="row">{locked ? <span className="small muted">After step {n}</span> : st.action}</div></div>);
-      })}</div>
-      {i && <div className="card mt16"><div className="bd row wrap" style={{ gap: 16 }}>
-        <div className="col" style={{ gap: 4, flex: 1, minWidth: 260 }}><h2 style={{ margin: 0 }}>See it work first</h2>
-          <span className="small muted">Run a sharp currency fall on your institution in the Scenario Studio: headlines arrive, prices move, and AMIRI Agent's monitors and investigation respond. Nothing touches live data.</span></div>
-        <Link className="btn" to="/studio"><Icon name="studio" />Open the Scenario Studio</Link></div></div>}
-    </div>
-  );
-}
-
-/** No institution yet: load one of the two invented demos in one click (the server refuses once an institution exists). */
-function DemoCard() {
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const load = async (kind: string) => {
+  const loadDemo = async (kind: string) => {
     setBusy(kind); setErr(null);
     try {
       const r = await fetch("/api/v1/prototype:demo", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind }) });
       if (!r.ok) { const p = await r.json().catch(() => ({})); throw new Error(p.detail ?? `HTTP ${r.status}`); }
-      window.location.assign("/home");  // every page loads again, with the demo
+      window.location.assign("/home");
     } catch (e) { setErr(String((e as Error).message ?? e)); setBusy(null); }
   };
   return (
-    <section className="card ovx-demo" aria-labelledby="demo-h"><div className="bd">
-      <span className="label">Fastest way in</span>
-      <h2 id="demo-h">Start with a demo</h2>
-      <p>An invented institution with its whole profile, ready to try everything on. No real customer data.</p>
-      <div className="ovx-demo-btns">{DEMOS.map((d, n) => (
-        <button key={d.kind} className={`btn btn--lg${n === 0 ? " btn--primary" : ""}`} type="button" disabled={!!busy} onClick={() => load(d.kind)}>
-          <Icon name={d.kind === "bank" ? "bank" : "health"} />
-          <span className="ovx-demo-t"><b>{busy === d.kind ? "Loading…" : `Load the ${d.label.toLowerCase()}`}</b><span>{d.name}, {d.what.charAt(0).toLowerCase()}{d.what.slice(1)}</span></span></button>))}</div>
-      {err && <div className="errtext" role="alert">{err}</div>}
-    </div></section>
+    <div className="eos-pad">
+      <div className="eos-hd">
+        <div>
+          <span className="label">Welcome</span>
+          <h1>Set up AMIRI Agent</h1>
+          <p className="sub">Load a sample institution in one click, or configure your own bank or insurer.</p>
+        </div>
+        <Link className="btn btn--primary" to={o.institution ? "/institution/setup" : "/institution/new"}>
+          <Icon name="chat" />{o.institution ? "Continue setup" : "Start custom setup"}
+        </Link>
+      </div>
+      {!o.institution && (
+        <div className="eos-focal col" style={{ gap: 12 }}>
+          <span className="label">Fastest way in</span>
+          <h2>Start with a sample institution</h2>
+          <div className="row wrap" style={{ gap: 10 }}>
+            {DEMOS.map((d, n) => (
+              <button key={d.kind} className={`btn${n === 0 ? " btn--primary" : ""}`} type="button" disabled={!!busy} onClick={() => loadDemo(d.kind)}>
+                <Icon name={d.kind === "bank" ? "bank" : "health"} />
+                {busy === d.kind ? "Loading…" : `Load ${d.name}`}
+              </button>
+            ))}
+          </div>
+          {err && <div className="errtext" role="alert">{err}</div>}
+        </div>
+      )}
+    </div>
   );
 }
-
-/** When every live monitor checks on the same cadence, it's said once above them ("All check every hour"). */
-const oneCadence = (live: MonitorRow[]) =>
-  live.length > 1 && live.every(m => m.check_frequency === live[0].check_frequency) ? `All check ${everyText(live[0].check_frequency).toLowerCase()}` : "";
 
 export function OverviewPage() {
   const nav = useNavigate();
@@ -113,186 +69,179 @@ export function OverviewPage() {
   const admin = role === "platform_admin";
   const [o, setO] = useState<Overview | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [recs, setRecs] = useState<Check[]>([]);  // the open recommendations, shown inside their "Also waiting" card
-  const [monitors, setMonitors] = useState<MonitorRow[]>([]);  // the live ones, for the Monitors section
+  const [recs, setRecs] = useState<Check[]>([]);
   const [err, setErr] = useState<unknown>(null);
   const [loadedAt, setLoadedAt] = useState<Date | null>(null);
+
   const load = useCallback(async () => {
-    try { const x = await overviewApi.get(admin); setO(x); setErr(null); setLoadedAt(new Date());
-      if (x.institution && !x.first_run) inst.profile(x.institution.institution_id).then(setProfile).catch(() => {});
-      if (x.institution && !x.first_run) monitorsApi.list(x.institution.institution_id, "live").then(setMonitors).catch(() => {});
-      if (x.institution && x.attention.some(a => a.kind === "recommended"))
-        inst.readiness(x.institution.institution_id).then(r => setRecs(r.checks.filter(c => c.level === "recommended" && !c.ok))).catch(() => {}); }
-    catch (e) { setErr(e); }
+    try {
+      const x = await overviewApi.get(admin);
+      setO(x); setErr(null); setLoadedAt(new Date());
+      if (x.institution && !x.first_run) {
+        inst.profile(x.institution.institution_id).then(setProfile).catch(() => {});
+        if (x.attention.some(a => a.kind === "recommended")) {
+          inst.readiness(x.institution.institution_id).then(r => setRecs(r.checks.filter(c => c.level === "recommended" && !c.ok))).catch(() => {});
+        }
+      }
+    } catch (e) { setErr(e); }
   }, [admin]);
+
   useEffect(() => { load(); const t = setInterval(load, REFRESH_MS); return () => clearInterval(t); }, [load]);
 
-  if (!o) return <div className="page">{err ? <><PageHead title="Overview" /><LoadError error={err} onRetry={load} /></> : <PageSkeleton bare />}</div>;
+  if (!o) return <div className="eos-pad">{err ? <><PageHead title="Command" /><LoadError error={err} onRetry={load} /></> : <PageSkeleton bare />}</div>;
   if (o.first_run) return <FirstRun o={o} />;
+
   const i = o.institution!;
   const c = o.counts;
   const s = o.services;
-  const names = { ...Object.fromEntries(Object.entries(o.map.places).map(([k, v]) => [k, v.name])), ...(profile?.place_names ?? {}) };
   const f24 = c.findings_24h.timeseries + c.findings_24h.monitor + c.findings_24h.radar;
   const sources = c.monitors_live + c.series_watched + (s.radar.connected ? 1 : 0);
-  const bad = o.events.filter(e => e.tone === "bad");
+  const sortedEvents = [...o.events].sort((x, y) => RANK[x.tone] - RANK[y.tone]);
+  const bad = sortedEvents.filter(e => e.tone === "bad");
   const alerts = c.alerts_to_review;
-  // one place per fact: the alerts are the headline, so they aren't a row again; late prices become one row, not one each
-  const late = o.attention.filter(a => a.kind === "series");
-  const rest: Attention[] = [
-    ...o.attention.filter(a => a.kind !== "alerts" && a.kind !== "series"),
-    ...(late.length ? [{ kind: "series", audience: "user", level: "warn", link: "/series", at: null,
-      title: late.length === 1 ? plainNote(late[0].title) : `${plural(late.length, "market price")} stopped updating`,
-      detail: late.length === 1 ? null : late.map(a => a.title.split(":")[0]).join(", ") } as Attention] : []),
-  ];
-  const more = rest.length + o.attention_more;
-
-  // The headline answers "does anything need my teams?" and the one button under it is the next step.
-  const head = alerts
-    ? { title: <><span className="ovx-n">{alerts} alert{alerts === 1 ? "" : "s"}</span> need{alerts === 1 ? "s" : ""} your attention</>,
-        line: bad.length ? <>Most serious: <Link to={`/events/${bad[0].event_id}`}><b>{eventTitle(bad[0])}</b></Link>, bad for you</> : <>Early warnings for products your teams own</>,
-        cta: <Link className="btn btn--primary btn--lg" to="/alerts">Review the alerts<Icon name="arrow" /></Link> }
-    : o.events.length
-      ? { title: "No alerts for your teams", line: <>AMIRI Agent is following {plural(o.events.length, "open event")}; none needs a team yet</>,
-          cta: <Link className="btn btn--primary btn--lg" to="/events">See the open events<Icon name="arrow" /></Link> }
-      : { title: s.tick.ok ? "All clear" : "Nothing open right now",
-          line: s.tick.ok ? <>No alerts and no open events. AMIRI Agent is watching {plural(sources, "source")}.</>
-            : <span className="ovx-warn"><Icon name="warn" />Updates aren't running, so no new news or prices arrive</span>,
-          cta: <Link className="btn btn--primary btn--lg" to="/studio"><Icon name="studio" />See how it responds: try a what-if</Link> };
-
-  // the map fills the hero beside the headline: 520 px on a full-HD screen, less on a shorter one so the steps and cue still fit
-  // ponytail: read at render (the page re-renders every 30 s), not on resize; add a resize listener if that ever matters
-  const mapH = Math.min(520, Math.max(320, window.innerHeight - 500));
-
-  // "Also waiting for you": one tile each, across the page, with how urgent it is on top and where to go at the bottom
-  const needTile = (a: Attention, n: number) => {
-    const top = <span className="ovn-lv"><span aria-hidden="true">{LEVEL_SHAPE[a.level]}</span>{LEVEL_WORD[a.level]}</span>;
-    // the profile's recommendations: each one by name, with what it found and a link to fix it; the rest on the Institution page
-    if (a.kind === "recommended" && recs.length) return <div key={n} className="ovn-tile" data-lv={a.level}>{top}
-      <span className="ovn-t">{plainNote(a.title)}</span>
-      <ul className="ovn-recs">{recs.slice(0, 3).map(c => <li key={c.id}>
-        <Link to={`/institution/${TAB_OF_SECTION[c.section] ?? "overview"}`}>{c.fix.replace(/\.$/, "")} →</Link><span className="ovn-d">{c.message}</span></li>)}</ul>
-      <Link className="ovn-go" to="/institution">{recs.length > 3 ? `See all ${recs.length} in the profile →` : "Open the profile →"}</Link></div>;
-    const body = <>{top}<span className="ovn-t">{plainNote(a.title)}</span>{a.detail && <span className="ovn-d">{a.detail}</span>}</>;
-    return a.link ? <Link key={n} to={a.link} className="ovn-tile" data-lv={a.level}>{body}<span className="ovn-go">Open →</span></Link>
-      : <div key={n} className="ovn-tile" data-lv={a.level}>{body}</div>;
-  };
-  // the live ones, a failed check first (it needs looking at), then the most recently checked
-  const failed = (m: MonitorRow) => m.last_check?.status === "error" ? 0 : 1;
-  const live = [...monitors].sort((x, y) => failed(x) - failed(y) || (y.last_check?.at ?? "").localeCompare(x.last_check?.at ?? ""));
-  // Radar's blips are labelled with where each story is: its sea or strait first, else its first country
-  const radarAt = o.radar.stories.map(r => { const p = placeOrder(r.places)[0]; return p ? names[p] ?? placeName(p) : ""; });
-  const late2 = o.markets.filter(m => m.state === "stale").length;  // prices that stopped updating; an unusual move is not one
-  const big = [...o.markets].sort((x, y) => Math.abs(y.change_1d_pct ?? 0) - Math.abs(x.change_1d_pct ?? 0))[0];
-  const marketsLine = [plural(o.markets.length, "price"), late2 ? `${late2} not updated` : null, big ? `biggest move today ${big.name} ${pct(big.change_1d_pct)}` : null].filter(Boolean).join(" · ");
-
-  const rows: StoryRow[] = [
-        [{ id: "events", label: "Open events", count: o.events.length, body: <>
-          {!o.events.length ? <p className="ovt-empty">No open events. When AMIRI Agent traces news or a price move to your products, it appears here.</p>
-            : [...o.events].sort((x, y) => RANK[x.tone] - RANK[y.tone]).slice(0, 3).map(e => (
-              <div key={e.event_id} className="ovt-row ovt-ev" data-tone={e.tone}>
-                <Link className="ovt-t" to={`/events/${e.event_id}`}><span className="ovt-sh" aria-hidden="true">{SHAPE[e.tone]}</span>
-                  <span className="ovt-tt">{eventTitle(e)}</span><span className="ovt-tone">{TONE_WORD[e.tone]}</span></Link>
-                <div className="ovt-d">{!e.effects ? "No possible impact on your products"
-                  : `${plural(e.effects, "possible impact")}${e.top_effects.length ? `: ${e.top_effects.map(x => x.product).join(", ")}${e.effects > e.top_effects.length ? ` and ${e.effects - e.top_effects.length} more` : ""}` : ""}`}</div>
-                <div className="ovt-m">{[e.places.length ? `${placeOrder(e.places).slice(0, 2).map(p => names[p] ?? placeName(p)).join(", ")}${e.places.length > 2 ? ` +${e.places.length - 2} more` : ""}` : null,
-                  `last news ${ago(e.last_finding_at, now)}`].filter(Boolean).join(" · ")}</div>
-                {e.top_effects.length > 0 && <Reveal label="How it reaches your products">
-                  <table className="ovt-fx"><tbody>{e.top_effects.map((x, n) => <tr key={n}><th>{x.product}</th><td>{x.label}</td></tr>)}</tbody></table>
-                  {e.themes.length > 0 && <div className="ovt-m">Themes: {e.themes.map(themeLabel).join(" · ")}</div>}</Reveal>}
-              </div>))}
-          <Link className="ovt-all" to="/events">See all {plural(o.events.length, "open event")} →</Link></> },
-         { id: "findings", label: "Latest findings", count: o.findings.length, body: <>
-          {!o.findings.length ? <p className="ovt-empty">No findings yet. They appear here when a monitor, a market price or Radar notices something.</p>
-            : o.findings.slice(0, 3).map(f => (
-              <Link key={f.finding_id} className="ovt-row" to={f.event_id ? `/events/${f.event_id}` : `/findings#f-${f.finding_id}`}>
-                <span className="ovt-tt2">{undated(f.title)}</span>
-                <span className="ovt-m">{SOURCE[f.source] ?? f.source} · {dayTime(f.created_at)} · {findingStatus(f)}</span></Link>))}
-          <Link className="ovt-all" to="/findings">See all findings →</Link></> }],
-        [{ id: "markets", label: "Markets", count: o.markets.length, body: <>
-          {!o.markets.length ? <p className="ovt-empty">No market prices watched yet. Add the rates and prices that matter to your bank on the Market series page.</p> : <>
-          <p className="ovt-sum">{marketsLine}</p>
-          <table className="ovt-tbl"><tbody>{o.markets.map(m => (
-            <tr key={m.series_id}><th><Link to={`/series/${m.series_id}`}>{m.name}</Link></th>
-              <td className={m.state !== "normal" ? "ovt-warnw" : undefined}>{m.state !== "normal" ? `◆ ${SERIES_STATE[m.state as SeriesState][0]}` : "Normal"}</td>
-              <td className="r">{price(m.close)}</td>
-              <td><Spark values={m.spark} w={80} h={24} color={m.state === "moved" ? "var(--high)" : "var(--ink-3)"} /></td>
-              <td className="r">{pct(m.change_1d_pct)}</td></tr>))}</tbody></table></>}
-          <Link className="ovt-all" to="/series">See market series →</Link></> },
-         { id: "monitors", label: "Monitors", count: c.monitors_live, body: <>
-          {!c.monitors_live ? <p className="ovt-empty">No live monitors yet. Draft them from your profile on the Monitors page; each one reads the news for one risk.</p>
-            : <>{oneCadence(live) && <p className="ovt-sum">{oneCadence(live)}.</p>}{live.slice(0, 3).map(m => (
-              <Link key={m.monitor_id} className="ovt-row" to={`/monitors/${m.monitor_id}`}>
-                <span className="ovt-tt2">{m.name}</span>
-                <span className="ovt-m">{m.last_check ? `${MONITOR_CHECK[m.last_check.status](m.last_check.findings)[0]} · ${ago(m.last_check.at, now)}` : "Not checked yet"}{oneCadence(live) ? "" : ` · ${everyText(m.check_frequency).toLowerCase()}`}</span></Link>))}</>}
-          {c.monitors_waiting_approval > 0 && <p className="ovt-fine">{plural(c.monitors_waiting_approval, "monitor")} waiting for approval.</p>}
-          <Link className="ovt-all" to="/monitors">See all monitors →</Link></> }],
-        { id: "radar", label: "Latest from Radar", count: o.radar.stories.length, scene: { data: { n: o.radar.stories.length, labels: radarAt, ids: o.radar.stories.map(r => r.story_id), scores: o.radar.stories.map(r => r.score) }, label: `A radar sweep; each story is a bright blip, the most important nearest the centre${radarAt.some(Boolean) ? `: ${radarAt.filter(Boolean).join(", ")}` : ""}` }, body: <>
-          {s.radar.connected && <p className="ovt-sum">Prototype: {scheduleText(o.radar.every_minutes, o.radar.run_at)}, Check now {o.radar.run_now_limit} times a day.</p>}
-          {!o.radar.stories.length ? <p className="ovt-empty">{s.radar.connected ? "No stories yet." : "Radar isn't connected yet."}</p>
-            : o.radar.stories.map(r => (
-              <Link key={r.story_id} className="ovt-row" to={r.event_id ? `/events/${r.event_id}` : "/radar"}>
-                <span className="ovt-tt2">{r.title}{admin && <b className="ovt-score" title="Radar score">{r.score}</b>}</span>
-                <span className="ovt-m">{ago(r.last_seen_at, now)} · {plural(r.publishers, "publisher")} · {r.status === "sent" ? (r.event_id ? "in an event" : "sent for investigation") : r.status === "below" ? "not important enough" : "dismissed"}</span></Link>))}
-          <Link className="ovt-all" to="/radar">Open Radar →</Link></> },
-        { id: "needs", label: alerts ? "Also waiting for you" : "Needs you", count: more, body: <>
-          {!rest.length ? <p className="ovt-empty">{alerts ? "Nothing else needs you." : "Nothing needs you right now."} Approvals, failed checks, prices that stop updating and gaps in your profile appear here.</p>
-            : <div className="ovn-grid">{rest.map(needTile)}</div>}
-          {o.attention_more > 0 && <p className="ovt-fine">and {o.attention_more} more</p>}
-          {o.admin_notes > 0 && <p className="ovt-fine">{plural(o.admin_notes, "note")} about AMIRI Agent's own services {o.admin_notes === 1 ? "is" : "are"} with your Platform Admin.</p>}</> },
-        ];
-  const below = rows.flat().length;  // the sections under the first screen, for the scroll cue
+  const movedMarkets = o.markets.filter(m => m.state === "moved" || m.state === "stale");
+  const rest: Attention[] = o.attention.filter(a => a.kind !== "alerts");
+  const sentRadar = o.radar.stories.filter(r => r.status === "sent").length;
 
   return (
-    <div className="page ovx">
-      {err != null && <Banner kind="warn" icon="warn">Couldn't refresh: {isDown(err) ? "AMIRI Agent didn't answer" : errText(err)}. Showing what was loaded {loadedAt ? ago(loadedAt.toISOString(), now) : ""}.</Banner>}
-      {/* the first screen: headline beside the live map, the four steps beneath */}
-      <div className="ovx-hero" data-state={alerts ? "alert" : "calm"}>
-      <PageHeader eyebrow={`${greeting(now)} · ${longDate(now)} · ${ZONE_LABEL}`} title={head.title}
-        status={<>{head.line}{more > 0 && <> · <a href="#needs">{plural(more, "more thing")} below</a></>}</>}
-        cta={head.cta}
-        actions={<>
-          <span className="small muted">Updated {loadedAt ? ago(loadedAt.toISOString(), now) : ""}</span>
-          <button className="btn btn--ghost btn--icon" type="button" aria-label="Refresh" onClick={load}><Icon name="refresh" /></button></>}
-        help={<HowItWorks><p>The four numbers below follow the same steps for {i.name}: what AMIRI Agent watches, what it found in the last day, what it traced to your products, and who must act.</p></HowItWorks>} />
+    <div className="eos-pad">
+      {err != null && <Banner kind="warn" icon="warn">Couldn't refresh: {isDown(err) ? "AMIRI Agent didn't answer" : errText(err)}. Showing data from {loadedAt ? ago(loadedAt.toISOString(), now) : "earlier"}.</Banner>}
 
-      <div className="eos-ai" style={{ gridColumn: "1 / -1", marginTop: 14 }}>
-        <div className="eos-ai-hd"><span className="eos-spark" aria-hidden="true">✦</span>AMIRI Multi-Agent Synthesis · {i.name}</div>
-        <div className="eos-ai-bd">
-          <b>Monitors ({c.monitors_live} live)</b>, <b>Market Series ({c.series_watched})</b>, and <b>Radar ({o.radar.stories.filter(r => r.status === "sent").length} sent)</b> surfaced <b>{plural(f24, "finding")}</b> in the last 24h; <b>Investigation Agent</b> traced <b>{plural(c.effects_to_watch, "possible impact")}</b> across <b>{plural(c.open_events, "open event")}</b>{bad.length ? <> — led by <b>{eventTitle(bad[0])}</b></> : null}.
+      {/* Header */}
+      <div className="eos-hd">
+        <div>
+          <div className="label">Executive Risk Posture · {longDate(now)} · {ZONE_LABEL}</div>
+          <h1>
+            {alerts > 0 ? <><span style={{ color: "var(--critical-ink)" }}>{plural(alerts, "alert")}</span> require team triage</>
+              : o.events.length > 0 ? `${plural(o.events.length, "open event")} under watch`
+              : "All clear — no open risks"}
+          </h1>
+          <p className="sub">
+            {bad.length > 0
+              ? <>Primary exposure: <Link to={`/events/${bad[0].event_id}`}><b>{eventTitle(bad[0])}</b></Link> ({plural(bad[0].effects, "impact")}){bad[1] ? <> and <Link to={`/events/${bad[1].event_id}`}><b>{eventTitle(bad[1])}</b></Link> ({plural(bad[1].effects, "impact")})</> : null}.</>
+              : <>AMIRI Agent is continuously watching {plural(sources, "source")} for {i.name}.</>}
+          </p>
+        </div>
+        <div className="row" style={{ gap: 8 }}>
+          <Link className="btn btn--primary" to={alerts > 0 ? "/alerts" : "/events"}>
+            {alerts > 0 ? `Open Alert Triage (${alerts}) →` : "View Open Events →"}
+          </Link>
+          <Link className="btn btn--ghost" to="/studio">Scenario Studio</Link>
+          <button className="btn btn--ghost btn--icon" type="button" aria-label="Refresh" onClick={load}><Icon name="refresh" /></button>
         </div>
       </div>
 
-      {profile && <section className="ovx-map" aria-labelledby="ovx-map-h"><h2 id="ovx-map-h" className="sr">Where it's happening</h2>
-        <p className="sr">{o.events.length ? `Open events by place: ${o.events.map(e => `${eventTitle(e)}${e.places.length ? ` (${e.places.map(p => names[p] ?? p).join(", ")})` : ""}`).join("; ")}.` : "No open events on the map."} Places where you operate: {Object.values(names).slice(0, 12).join(", ")}.</p>
-        <ProfileMap profile={profile} height={mapH} compact layers={["footprint", "flows", "risks"]}
-          events={o.events.map(e => ({ event_id: e.event_id, title: eventTitle(e), tone: e.tone, places: e.places }))}
-          extraPlaces={o.map.places} onEvent={id => nav(`/events/${id}`)} /></section>}
-
-      <div className="ovx-kpis" role="group" aria-label="How AMIRI Agent works: what it watches, what it found, what it traced to you, who must act">
-        <Link to="/monitors" className={`ovx-kpi${sources ? " live" : ""}`}>
-          <span className="step">1 · Watching</span>
-          <span className="v"><CountUp value={sources} /></span><span className="l">Sources</span>
-          <span className="s">{[plural(c.monitors_live, "monitor"), plural(c.series_watched, "market price"), s.radar.connected && "Radar"].filter(Boolean).join(" · ")}
-            {c.monitors_waiting_approval ? <><br />{c.monitors_waiting_approval} waiting for approval</> : null}</span></Link>
-        <Link to="/findings" className={`ovx-kpi${f24 ? " live" : ""}`}>
-          <span className="step">2 · Found</span>
-          <span className="v"><CountUp value={f24} /></span><span className="l">Findings, last 24 h</span>
-          <span className="s">{f24 ? [c.findings_24h.monitor && `${c.findings_24h.monitor} from news`, c.findings_24h.timeseries && `${c.findings_24h.timeseries} from prices`,
-            c.findings_24h.radar && `${c.findings_24h.radar} from Radar`].filter(Boolean).join(" · ") : "nothing new today"}</span></Link>
-        <Link to="/events" className={`ovx-kpi${c.open_events ? " live" : ""}`}>
-          <span className="step">3 · Traced to you</span>
-          <span className="v"><CountUp value={c.open_events} /></span><span className="l">Open events</span>
-          <span className="s">{c.open_events ? `${bad.length} bad for you · ${plural(c.effects_to_watch, "possible impact")}` : "none open"}</span></Link>
-        <Link to="/alerts" className={`ovx-kpi${alerts ? " hot" : ""}`}>
-          <span className="step">4 · Who must act</span>
-          <span className="v">{alerts > 0 && <Icon name="warn" />}<CountUp value={alerts} /></span><span className="l">Alerts to review</span>
-          <span className="s">{alerts ? "for your teams to acknowledge" : "all caught up"}</span></Link>
-      </div>
-      <div className="ovx-cue" aria-hidden="true">Scroll · {below} more sections</div>
+      {/* ✦ Multi-Agent Synthesis Strip */}
+      <div className="eos-ai">
+        <div className="eos-ai-hd"><span className="eos-spark" aria-hidden="true">✦</span>AMIRI Multi-Agent Synthesis · Why today matters to {i.name}</div>
+        <div className="eos-ai-bd">
+          <b>Radar Agent</b> ({sentRadar} sent), <b>Monitor Agent</b> ({c.monitors_live} live), and <b>Market Series</b> ({c.series_watched} watched) surfaced <b>{plural(f24, "finding")}</b> in the last 24h. <b>Investigation Agent</b> traced <b>{plural(c.effects_to_watch, "product impact")}</b> across <b>{plural(c.open_events, "open event")}</b>.
+        </div>
+        <div className="eos-ai-meta">
+          <span>✦ Monitors: {c.monitors_live} live{c.monitors_waiting_approval ? ` · ${c.monitors_waiting_approval} pending approval` : ""}</span>
+          {movedMarkets.length > 0 && <span>◆ Market anomaly: <b>{movedMarkets[0].name}</b> ({price(movedMarkets[0].close)})</span>}
+          {loadedAt && <span>Updated {ago(loadedAt.toISOString(), now)}</span>}
+        </div>
       </div>
 
-      <OverviewStory rows={rows} />
+      {/* 4-Stage Cardless Hairline Ledger */}
+      <div className="eos-ledger" role="group" aria-label="Risk intelligence pipeline">
+        <Link to="/monitors" className="eos-ledger-cell">
+          <span className="eos-l-step">01 · Surveillance</span>
+          <span className="eos-l-val">{sources}</span>
+          <span className="eos-l-meta">{c.monitors_live} monitors · {c.series_watched} series · {s.radar.connected ? "Radar" : "Radar off"}</span>
+        </Link>
+        <Link to="/findings" className="eos-ledger-cell">
+          <span className="eos-l-step">02 · Findings (24h)</span>
+          <span className="eos-l-val">{f24}</span>
+          <span className="eos-l-meta">{[c.findings_24h.monitor && `${c.findings_24h.monitor} news`, c.findings_24h.timeseries && `${c.findings_24h.timeseries} prices`, c.findings_24h.radar && `${c.findings_24h.radar} Radar`].filter(Boolean).join(" · ") || "Quiet in last 24h"}</span>
+        </Link>
+        <Link to="/events" className="eos-ledger-cell">
+          <span className="eos-l-step">03 · Open Events</span>
+          <span className="eos-l-val">{c.open_events}</span>
+          <span className="eos-l-meta">{bad.length} adverse · {plural(c.effects_to_watch, "impact")}</span>
+        </Link>
+        <Link to="/alerts" className="eos-ledger-cell">
+          <span className="eos-l-step">04 · Pending Action</span>
+          <span className={`eos-l-val${alerts > 0 ? " hot" : ""}`}>{alerts}</span>
+          <span className="eos-l-meta">{alerts > 0 ? "Alerts waiting for teams" : "All caught up"}</span>
+        </Link>
+      </div>
+
+      {/* Clean 2-Column Editorial Grid: Left = Focal Corridor Map, Right = Priority Signals Table + Governance */}
+      <div className="eos-cmd-grid">
+        <div className="eos-focal">
+          <div className="row" style={{ justifyContent: "space-between", marginBottom: 10 }}>
+            <span style={{ fontSize: 13.5, fontWeight: 600, color: "var(--ink)" }}>Corridor &amp; Exposure Map</span>
+            {bad.length > 0 && <span className="badge b-down">▲ {bad.length} adverse</span>}
+          </div>
+          {profile ? (
+            <ProfileMap profile={profile} height={270} compact layers={["footprint", "flows", "risks"]}
+              events={o.events.map(e => ({ event_id: e.event_id, title: eventTitle(e), tone: e.tone, places: e.places }))}
+              extraPlaces={o.map.places} onEvent={id => nav(`/events/${id}`)} />
+          ) : <div className="small muted" style={{ padding: "40px 0", textAlign: "center" }}>Loading footprint map…</div>}
+        </div>
+
+        <div className="col" style={{ gap: 16 }}>
+          <div>
+            <div className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
+              <h2>Priority Signals</h2>
+              <Link to="/events" className="small" style={{ fontWeight: 600 }}>All {c.open_events} events →</Link>
+            </div>
+            <table className="eos-tbl">
+              <thead><tr><th>Signal / Event</th><th>Impact</th><th className="r">Status</th></tr></thead>
+              <tbody>
+                {sortedEvents.slice(0, 4).map(e => (
+                  <tr key={e.event_id} className="click" onClick={() => nav(`/events/${e.event_id}`)}>
+                    <td>
+                      <span className={`badge ${TONE_CLS[e.tone]}`} style={{ marginRight: 8 }}>{SHAPE[e.tone]} {TONE_WORD[e.tone]}</span>
+                      <strong style={{ color: "var(--ink)" }}>{eventTitle(e)}</strong>
+                    </td>
+                    <td className="mono">{e.effects > 0 ? `${e.effects} lines` : "None"}</td>
+                    <td className="r small muted">{ago(e.last_finding_at, now)}</td>
+                  </tr>
+                ))}
+                {o.markets.slice(0, 2).map(m => (
+                  <tr key={m.series_id} className="click" onClick={() => nav(`/series/${m.series_id}`)}>
+                    <td>
+                      <span className={`badge ${m.state === "moved" ? "b-warn" : "b-noeffect"}`} style={{ marginRight: 8 }}>
+                        {m.state === "moved" ? "◆ Unusual" : "FX/Mkt"}
+                      </span>
+                      <strong style={{ color: "var(--ink)" }}>{m.name}</strong>
+                    </td>
+                    <td className="mono">{price(m.close)}</td>
+                    <td className="r mono small" style={{ color: (m.change_1d_pct ?? 0) < 0 ? "var(--critical-ink)" : "var(--ink-3)" }}>{pct(m.change_1d_pct)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {(rest.length > 0 || recs.length > 0) && (
+            <details className="eos-fold" open>
+              <summary>Pending approvals &amp; governance ({rest.length})</summary>
+              <div className="eos-fold-bd col" style={{ gap: 8 }}>
+                {rest.slice(0, 4).map((a, idx) => (
+                  <div key={idx} className="row" style={{ gap: 10 }}>
+                    <span className={`badge ${a.level === "crit" ? "b-down" : a.level === "warn" ? "b-warn" : "b-info"}`}>
+                      {a.kind === "recommended" ? "Profile" : a.level === "warn" ? "Check" : "Action"}
+                    </span>
+                    <span style={{ color: "var(--ink)", flex: 1 }}>{plainNote(a.title)}</span>
+                    {a.link && <Link className="btn btn--sm" to={a.link}>Open →</Link>}
+                  </div>
+                ))}
+                {recs.slice(0, 2).map(r => (
+                  <div key={r.id} className="row" style={{ gap: 10 }}>
+                    <span className="badge b-warn">Profile</span>
+                    <span className="small" style={{ flex: 1 }}>{r.message}</span>
+                    <Link className="btn btn--sm" to={`/institution/${TAB_OF_SECTION[r.section] ?? "overview"}`}>Fix →</Link>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

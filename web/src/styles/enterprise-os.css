@@ -387,6 +387,21 @@ details.eos-fold[open] > summary::before { transform: rotate(90deg); }
 .eos-ack-win path { stroke-dasharray: 24; stroke-dashoffset: 24; animation: eos-draw 210ms 200ms var(--ease-out) forwards; }
 @keyframes eos-draw { to { stroke-dashoffset: 0; } }
 
+/* Clean Enterprise Page Container, Header, Table & Focal Surface */
+.eos-pad { padding: 22px 28px 56px; display: flex; flex-direction: column; gap: 18px; max-width: 1280px; width: 100%; margin: 0 auto; }
+.eos-hd { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.eos-hd h1 { font-size: var(--fs-2xl); line-height: 1.15; letter-spacing: -0.025em; }
+.eos-hd .sub { color: var(--ink-2); font-size: var(--fs-sm); margin-top: 4px; }
+.eos-focal { background: var(--pane); border: 1px solid var(--hairline); border-radius: var(--r-card); padding: 16px; }
+.eos-cmd-grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.25fr); gap: 26px; align-items: start; }
+.eos-tbl { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+.eos-tbl th { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--hairline-2); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-3); }
+.eos-tbl td { padding: 11px 10px; border-bottom: 1px solid var(--hairline); color: var(--ink-2); vertical-align: middle; }
+.eos-tbl tr.click { cursor: pointer; }
+.eos-tbl tr.click:hover td { background: var(--hover-bg); }
+.eos-tbl .r { text-align: right; }
+@media (max-width: 960px) { .eos-cmd-grid { grid-template-columns: 1fr; } }
+
 /* Mobile Bottom Nav (Rule 1.9 & 4.2: 44px touch targets) */
 .eos-mobnav { display: none; }
 @media (max-width: 900px) {

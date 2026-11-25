@@ -10,6 +10,7 @@ import { SystemStatus } from "./components/SystemStatus";
 import { CommandPalette } from "./components/CommandPalette";
 import { TelemetryStrip } from "./components/TelemetryStrip";
 import "./styles/shell.css";
+import "./styles/enterprise-os.css";
 import { InstitutionPage, NewInstitutionPage } from "./pages/institution/InstitutionPage";
 import { SetupWizard } from "./pages/institution/SetupWizard";
 import { EventDetailPage } from "./pages/events/EventDetail";
@@ -83,11 +84,11 @@ function NeedsInstitution({ title, what, children }: { title: string; what: stri
 const BUILT = new Set(["/home", "/events", "/radar", "/monitors", "/series", "/studio", "/alerts", "/institution", "/admin/data", "/admin/settings", "/spec", "/findings"]);
 
 function useTheme() {
-  const [theme, setTheme] = useState<string | null>(() => { try { return localStorage.getItem("amiri.theme"); } catch { return null; } });
+  const [theme, setTheme] = useState<string>(() => { try { return localStorage.getItem("amiri.theme") || "light"; } catch { return "light"; } });
   useEffect(() => {
-    if (theme) document.documentElement.dataset.theme = theme; else delete document.documentElement.dataset.theme;
+    document.documentElement.dataset.theme = theme;
   }, [theme]);
-  const dark = theme ? theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  const dark = theme === "dark";
   const toggle = () => {
     const next = dark ? "light" : "dark";
     setTheme(next);

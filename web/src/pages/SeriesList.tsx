@@ -1,16 +1,17 @@
-import { useCallback, useEffect, useState } from "react";
+// Market Series — Master-Detail Symbol Search, Asset Type Filter & Z-Score Inspector (V2.2).
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { seriesApi, type Series, type SeriesStatus } from "../api/series";
 import { Spark } from "../components/charts";
 import { Icon } from "../components/Icon";
-import { HowItWorks, PageHeader, StatusPill } from "../components/blocks";
+import { HowItWorks, StatusPill } from "../components/blocks";
 import { AddSeriesModal, FetchBadge, RefreshButton, seriesSentence, StateBadge, themeMeaning } from "../components/series";
-import { Banner, Empty, useNow, useRole, ListSkeleton, LoadError } from "../components/ui";
+import { Banner, Empty, useNow, useRole, ListSkeleton, LoadError, useToast } from "../components/ui";
 import { ago, due, pctFine, price, when, zx, ZONE_LABEL } from "../format";
 import { count, ruleText } from "../plain";
-import "../styles/series.css";
 
 const POLL_MS = 60_000;
+const concern = (s: Series) => (s.state === "moved" ? 0 : s.state === "stale" ? 1 : 2);
 
 export function useSeriesStatus() {
   const [status, setStatus] = useState<SeriesStatus | null>(null);
@@ -19,77 +20,38 @@ export function useSeriesStatus() {
   return { status, reload: load };
 }
 
-/** The provider isn't set up: the Platform Admin sees how to fix it, a Risk Manager what it means. */
 export function PrototypeBanner({ status }: { status: SeriesStatus | null }) {
   const { role } = useRole();
   if (!status || status.provider.configured) return null;
   return role === "platform_admin"
-    ? <Banner kind="crit" icon="warn"><b>Twelve Data isn't configured.</b> Set <span className="mono">TWELVEDATA_API_KEY</span> in the server's environment; until then nothing can be added, refreshed or pulled.</Banner>
+    ? <Banner kind="crit" icon="warn"><b>Twelve Data isn't configured.</b> Set <span className="mono">TWELVEDATA_API_KEY</span> in the server's environment.</Banner>
     : <Banner kind="warn" icon="warn">Prices can't be updated right now. Your Platform Admin has been told.</Banner>;
 }
 
-/** How prices are pulled: behind the page's "How this works" link. */
 export function PricesHelp({ status }: { status: SeriesStatus | null }) {
   const now = useNow(60_000);
   const { role } = useRole();
   const c = status?.provider.credits;
   return (
     <HowItWorks>
-      <p>AMIRI Agent watches these prices by itself, with plain arithmetic. It {ruleText(status?.detector_defaults.z_threshold ?? 3)} for that length of time; each flagged move becomes a finding for the investigation.</p>
-      {status && <p>Prices are pulled once an hour, not streamed. The next pull is due {due(status.schedule.next_run_at, now)}{status.schedule.next_run_at && new Date(status.schedule.next_run_at) > now ? ` ${ZONE_LABEL} time` : ""}. Refresh now pulls a series' latest prices (once every {Math.round(status.refresh.cooldown_seconds / 60)} minutes). Up to {status.limits.max_series} series can be watched; {status.limits.used} are.</p>}
-      {role === "platform_admin" && c && <p>Twelve Data credits today: {c.used_today} of {c.per_day}; this minute {c.used_last_minute} of {c.per_minute}.</p>}
+      <p>AMIRI Agent watches these prices automatically. It {ruleText(status?.detector_defaults.z_threshold ?? 3)}; each flagged move becomes a finding for the investigation.</p>
+      {status && <p>Next pull due {due(status.schedule.next_run_at, now)} ({ZONE_LABEL}). {status.limits.used} of {status.limits.max_series} series watched.</p>}
+      {role === "platform_admin" && c && <p>Twelve Data credits today: {c.used_today} of {c.per_day}.</p>}
     </HowItWorks>
   );
 }
 
-// an unusual move or a price that stopped updating comes first; the rest keep the order they were added in (sort is stable)
-const concern = (s: Series) => (s.state === "moved" ? 0 : s.state === "stale" ? 1 : 2);
-
-/** Gemini's plan: the card says name, how unusual, price, 1 day, the spark and one line on the latest anomaly;
- *  the facts, Refresh and the way to the chart wait behind "Series stats & threshold". */
-function SeriesCard({ s, onChange }: { s: Series; onChange: (s: Series) => void }) {
-  const now = useNow(30_000);
-  const l = s.latest;
-  const z = l?.max_z === null || l?.max_z === undefined ? null : Math.abs(l.max_z);
-  const unusual = s.state === "moved" || (z !== null && z >= s.detector.z_threshold);
-  const settled = z !== null && (s.state === "normal" || s.state === "moved");  // pending, learning, stale, paused keep their own word
-  const sparkColor = s.state === "stale" ? "var(--medium)" : unusual ? "var(--high)" : "var(--accent)";
-  const anomaly = s.last_finding ? <>Flagged <Link to={`/series/${s.series_id}#findings`}>{when(s.last_finding.at, now)}</Link></>  /* when the flag was raised; how unusual it is now is the pill's job */
-    : settled ? <>Largest recent move {zx(z)} a normal one</> : seriesSentence(s, now);
-  return (
-    <article className="card scard sc" aria-labelledby={`sc-${s.series_id}`}>
-      <div className="sc-top">
-        <h2 id={`sc-${s.series_id}`}><Link to={`/series/${s.series_id}`}>{s.name}</Link></h2>
-        {settled ? <StatusPill tone={unusual ? "red" : "green"}>{zx(z)} normal</StatusPill> : <StateBadge state={s.state} />}
-      </div>
-      <div className="sc-mid">
-        <span className="sc-price">{price(l?.close)}</span>
-        <span className={`sc-chg${unusual ? " hot" : ""}`}>{pctFine(l?.change_1d_pct)} <span className="muted">1 day</span></span>
-        <span className="spacer" />
-        <Spark values={s.spark.map(p => p.close)} color={sparkColor} w={120} h={36} />
-      </div>
-      <p className="sc-anom">{anomaly}</p>
-      <details className="sc-det">
-        <summary>Series stats &amp; threshold</summary>
-        <dl className="facts">
-          <div><dt>Normal day</dt><dd>{l?.typical_daily_move_pct ? `±${pctFine(l.typical_daily_move_pct).replace(/^\+/, "")}` : "not known yet"}</dd></div>
-          <div><dt>Flagged at</dt><dd>{s.detector.z_threshold}× a normal move</dd></div>
-          <div><dt>Latest price</dt><dd>{l ? `hour ending ${when(l.bar_end, now)}` : "none yet"}</dd></div>
-          <div><dt>Updated</dt><dd>{ago(s.fetch.last_at, now)} <FetchBadge s={s} /></dd></div>
-          <div><dt>A move means</dt><dd>{themeMeaning(s.theme)}</dd></div>
-        </dl>
-        <div className="sc-foot"><RefreshButton s={s} onDone={onChange} /><span className="spacer" /><Link to={`/series/${s.series_id}`}>Chart and details</Link></div>
-      </details>
-    </article>
-  );
-}
-
 export function SeriesList() {
+  const now = useNow(30_000);
+  const toast = useToast();
   const { role } = useRole();
   const [items, setItems] = useState<Series[] | null>(null);
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [stateFilter, setStateFilter] = useState("");
+  const [selId, setSelId] = useState<string | null>(null);
+  const [simPct, setSimPct] = useState(5);
+  const [simBusy, setSimBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [adding, setAdding] = useState(false);
   const { status, reload: reloadStatus } = useSeriesStatus();
@@ -98,6 +60,7 @@ export function SeriesList() {
     try { setItems(await seriesApi.list()); setError(null); }
     catch (e) { setError(e); }
   }, []);
+
   useEffect(() => {
     load();
     const t = setInterval(() => { load(); reloadStatus(); }, POLL_MS);
@@ -108,56 +71,160 @@ export function SeriesList() {
   const isAdmin = role === "platform_admin";
   const left = status ? status.limits.available : 0;
 
+  const types = useMemo(() => [...new Set((items ?? []).map(s => s.instrument?.type).filter(Boolean) as string[])], [items]);
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return [...(items ?? [])].sort((a, b) => concern(a) - concern(b)).filter(s => {
+      if (typeFilter && (s.instrument?.type ?? "") !== typeFilter) return false;
+      if (stateFilter && s.state !== stateFilter) return false;
+      if (!q) return true;
+      return `${s.symbol} ${s.name} ${s.instrument?.type ?? ""} ${s.places.join(" ")}`.toLowerCase().includes(q);
+    });
+  }, [items, query, typeFilter, stateFilter]);
+
+  const cur = filtered.find(s => s.series_id === selId) ?? filtered[0] ?? null;
+
+  const runSim = async () => {
+    if (!cur) return;
+    setSimBusy(true);
+    try { const r = await seriesApi.simulate(cur.series_id, simPct); toast(r.note); }
+    catch (e) { toast(String(e)); }
+    finally { setSimBusy(false); }
+  };
+
   return (
-    <div className="page">
-      <PageHeader title="Market series"
-        status={items === null ? "" : <><b className="ink">{count(items.length, "price")} watched</b>{items.some(x => x.state === "moved") ? `, ${items.filter(x => x.state === "moved").length} moving unusually` : ""}{items.some(x => x.state === "stale") ? `, ${items.filter(x => x.state === "stale").length} not updating` : ""}</>}
-        actions={isAdmin
-          ? <button className="btn btn--primary" type="button" onClick={() => setAdding(true)} disabled={!status || left <= 0}
-              title={left <= 0 ? "The prototype's series limit is reached; delete one first" : undefined}><Icon name="plus" />Add a series</button>
-          : <span className="small muted">Platform Admins add and edit series.</span>}
-        help={<PricesHelp status={status} />} />
-      <div className="banners"><PrototypeBanner status={status} /></div>
+    <div className="eos-pad" style={{ paddingBottom: 0 }}>
+      <div className="eos-hd">
+        <div>
+          <div className="label">Market Surveillance · Twelve Data</div>
+          <h1>
+            {items === null ? "Market Series" : <>{count(items.length, "price")} watched{items.some(x => x.state === "moved") ? <> · <span style={{ color: "var(--high-ink)" }}>{items.filter(x => x.state === "moved").length} unusual</span></> : ""}</>}
+          </h1>
+        </div>
+        <div className="row" style={{ gap: 8 }}>
+          {isAdmin && (
+            <button className="btn btn--primary btn--sm" type="button" onClick={() => setAdding(true)} disabled={!status || left <= 0}>
+              <Icon name="plus" />Watch symbol
+            </button>
+          )}
+        </div>
+      </div>
+
+      <PrototypeBanner status={status} />
       {error != null && <LoadError error={error} onRetry={load} what="the market series" />}
-      {items === null && error == null && <ListSkeleton rows={2} />}
-      {items && items.length === 0 && (
-        <div className="card"><Empty icon="series" title="No series yet"
-          actions={isAdmin ? <button className="btn btn--primary" type="button" onClick={() => setAdding(true)}><Icon name="plus" />Add a series</button> : undefined}>
-          {isAdmin ? "Add the exchange rates and prices that matter to your institution." : "A Platform Admin adds the series AMIRI Agent watches."}
-        </Empty></div>
-      )}
-      {items && items.length > 0 && (() => {
-        const types = [...new Set(items.map(s => s.instrument?.type).filter(Boolean) as string[])];
-        const q = query.trim().toLowerCase();
-        const filtered = [...items].sort((a, b) => concern(a) - concern(b)).filter(s => {
-          if (typeFilter && (s.instrument?.type ?? "") !== typeFilter) return false;
-          if (stateFilter && s.state !== stateFilter) return false;
-          if (!q) return true;
-          return `${s.symbol} ${s.name} ${s.instrument?.type ?? ""} ${s.places.join(" ")}`.toLowerCase().includes(q);
-        });
-        return <>
-          <div className="eos-filterbar">
-            <div className="eos-search">
-              <Icon name="search" />
-              <input value={query} onChange={e => setQuery(e.target.value)} aria-label="Search market series" placeholder="Search symbol, currency, or commodity (e.g. USD/AED, Gold)…" />
-            </div>
-            {types.length > 0 && <select className="eos-select" aria-label="Filter by asset type" value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
-              <option value="">All types</option>
-              {types.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>}
-            <select className="eos-select" aria-label="Filter by state" value={stateFilter} onChange={e => setStateFilter(e.target.value)}>
-              <option value="">All states</option>
-              <option value="moved">Unusual move</option>
-              <option value="normal">Normal</option>
-              <option value="stale">Late / stale</option>
-              <option value="paused">Paused</option>
-            </select>
+
+      {items && items.length > 0 && (
+        <div className="eos-filterbar" style={{ marginBottom: 0 }}>
+          <div className="eos-search">
+            <Icon name="search" />
+            <input value={query} onChange={e => setQuery(e.target.value)} aria-label="Search market series" placeholder="Search symbol or instrument (USD/AED, Gold, LKR…)" />
           </div>
-          {filtered.length === 0
-            ? <Empty icon="series" title="No matching symbols">Try clearing your symbol search or type filter.</Empty>
-            : <div className="seriesgrid mt12">{filtered.map(s => <SeriesCard key={s.series_id} s={s} onChange={replace} />)}</div>}
-        </>;
-      })()}
+          {types.length > 0 && (
+            <select className="eos-select" aria-label="Filter by asset type" value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
+              <option value="">All asset types</option>
+              {types.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          )}
+          <select className="eos-select" aria-label="Filter by state" value={stateFilter} onChange={e => setStateFilter(e.target.value)}>
+            <option value="">All states</option>
+            <option value="moved">Unusual move</option>
+            <option value="normal">Normal</option>
+            <option value="stale">Late / stale</option>
+            <option value="paused">Paused</option>
+          </select>
+        </div>
+      )}
+
+      {items === null && error == null && <div className="mt12"><ListSkeleton rows={3} /></div>}
+      {items && items.length === 0 && (
+        <div className="mt16"><Empty icon="series" title="No series watched yet">A Platform Admin adds the FX rates and commodities AMIRI Agent watches.</Empty></div>
+      )}
+      {items && items.length > 0 && filtered.length === 0 && (
+        <div className="mt16"><Empty icon="series" title="No matching symbols">Try clearing your search or type filter.</Empty></div>
+      )}
+
+      {cur && (
+        <div className="eos-split">
+          <div className="eos-list">
+            {filtered.map(s => {
+              const l = s.latest;
+              const z = l?.max_z != null ? Math.abs(l.max_z) : null;
+              const unusual = s.state === "moved" || (z !== null && z >= s.detector.z_threshold);
+              return (
+                <button key={s.series_id} type="button" className="eos-row" data-selected={cur.series_id === s.series_id} onClick={() => setSelId(s.series_id)}>
+                  <div className="row" style={{ gap: 8 }}>
+                    <strong style={{ color: "var(--ink)" }}>{s.name}</strong>
+                    {z !== null ? <StatusPill tone={unusual ? "red" : "green"}>{zx(z)} σ</StatusPill> : <StateBadge state={s.state} />}
+                    <span className="mono" style={{ marginLeft: "auto", fontWeight: 700, color: "var(--ink)" }}>{price(l?.close)}</span>
+                  </div>
+                  <div className="row small muted" style={{ justifyContent: "space-between" }}>
+                    <span>{s.instrument?.type ?? s.symbol} · {ago(s.fetch.last_at, now)}</span>
+                    <span className="mono">{pctFine(l?.change_1d_pct)}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="eos-insp">
+            <div className="eos-hd">
+              <div>
+                <div className="label">{cur.instrument?.type ?? "Market series"} · {cur.symbol} · updated {ago(cur.fetch.last_at, now)}</div>
+                <h2 style={{ fontSize: 23, marginTop: 2 }}>
+                  {cur.name} <span className="mono" style={{ fontWeight: 500, color: "var(--ink-2)", marginLeft: 8 }}>{price(cur.latest?.close)}</span>
+                </h2>
+              </div>
+              <div className="row" style={{ gap: 8 }}>
+                <RefreshButton s={cur} onDone={replace} />
+                <Link className="btn btn--sm btn--ghost" to={`/series/${cur.series_id}`}>Full chart &amp; logs →</Link>
+              </div>
+            </div>
+
+            <div className="eos-ai">
+              <div className="eos-ai-hd"><span className="eos-spark" aria-hidden="true">✦</span>Anomaly Detector · Threshold {cur.detector.z_threshold}× normal</div>
+              <div className="eos-ai-bd">{seriesSentence(cur, now)}. {themeMeaning(cur.theme)}</div>
+              <div className="eos-ai-meta">
+                <span>Normal day: <b className="mono">{cur.latest?.typical_daily_move_pct ? `±${pctFine(cur.latest.typical_daily_move_pct).replace(/^\+/, "")}` : "—"}</b></span>
+                {cur.last_finding && <span>Last flagged: <b>{when(cur.last_finding.at, now)}</b></span>}
+                <span><FetchBadge s={cur} /></span>
+              </div>
+            </div>
+
+            <div className="eos-focal">
+              <div className="row small muted" style={{ justifyContent: "space-between", marginBottom: 8 }}>
+                <strong style={{ color: "var(--ink)" }}>Recent trajectory</strong>
+                <span className="mono">1d change: {pctFine(cur.latest?.change_1d_pct)}</span>
+              </div>
+              <Spark values={cur.spark.map(p => p.close)} color={cur.state === "moved" ? "var(--high)" : "var(--accent)"} w={420} h={72} />
+            </div>
+
+            {cur.latest && cur.latest.windows.length > 0 && (
+              <table className="eos-tbl">
+                <thead><tr><th>Window</th><th className="r">Change</th><th className="r">vs. Normal</th></tr></thead>
+                <tbody>
+                  {cur.latest.windows.map(w => (
+                    <tr key={w.days}>
+                      <td><strong>{w.days}d</strong></td>
+                      <td className="r mono">{pctFine(w.change_pct)}</td>
+                      <td className="r mono"><b>{w.z != null ? zx(Math.abs(w.z)) : "—"}</b></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+
+            <details className="eos-fold">
+              <summary>Try a move (Sandbox simulator — live data untouched)</summary>
+              <div className="eos-fold-bd row wrap" style={{ gap: 12 }}>
+                <span>Simulated shock: <b className="mono">{simPct > 0 ? `+${simPct}%` : `${simPct}%`}</b></span>
+                <input type="range" min={-10} max={10} step={0.5} value={simPct} onChange={e => setSimPct(Number(e.target.value))} />
+                <button type="button" className="btn btn--primary btn--sm" disabled={simBusy} onClick={runSim}>{simBusy ? "Testing…" : "Run test"}</button>
+              </div>
+            </details>
+          </div>
+        </div>
+      )}
+
       {adding && <AddSeriesModal left={left} onClose={() => setAdding(false)}
         onAdded={s => { setAdding(false); setItems(xs => [...(xs ?? []), s]); reloadStatus(); }} />}
     </div>
