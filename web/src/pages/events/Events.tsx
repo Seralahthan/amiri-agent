@@ -133,11 +133,15 @@ function Brief({ e, det, failed, onRetry, checks, why, onWhy }: { e: EventRow; d
     {!det && failed && <p className="ev-fail">Couldn't load what this event means for you.
       <button className="btn btn--sm" type="button" onClick={onRetry}><Icon name="refresh" />Try again</button></p>}
     {xs.length > 0 ? <>
-      {/* folded to one line; opened, it stays open from event to event */}
-      <details className="ev-why" open={why} onToggle={x => onWhy((x.target as HTMLDetailsElement).open)}>
-        <summary><h3>Why it matters to you</h3><span><b className="amb">{count(e.hypotheses, "possible impact")}</b> on <b className="amb">{count(new Set(xs.map(i => i.product)).size, "product")}</b></span></summary>
-        <ul className="ev-imp">{xs.map(i => <li key={i.id}><b>{i.product}</b>: {lower(i.what)}<span className="muted"> · {i.st}</span></li>)}</ul>
-      </details>
+      <div className="eos-ai" style={{ marginBottom: 12 }}>
+        <div className="eos-ai-hd"><span className="eos-spark" aria-hidden="true">✦</span>Investigation Agent · Why it matters to you</div>
+        <div className="eos-ai-bd">
+          <details className="ev-why" open={why || true} onToggle={x => onWhy((x.target as HTMLDetailsElement).open)}>
+            <summary><span style={{ fontWeight: 600 }}><b className="amb">{count(e.hypotheses, "possible impact")}</b> on <b className="amb">{count(new Set(xs.map(i => i.product)).size, "product")}</b></span></summary>
+            <ul className="ev-imp">{xs.map(i => <li key={i.id}><b>{i.product}</b>: {lower(i.what)}<span className="muted"> · {i.st}</span></li>)}</ul>
+          </details>
+        </div>
+      </div>
     </> : e.hypotheses === 0 && <p>The investigation found nothing in it that reaches your products. It closes on its own when the news stops.</p>}
     {f && <p className="ev-src"><span>It started from</span>
       {si && <span className={`ev-lab src-${f.source}`}><Icon name={si.icon} />{si.label}</span>}
@@ -157,6 +161,8 @@ export function EventsPage() {
   const now = useNow(30_000);
   const [show, setShow] = useState<Show>("open");
   const [sort, setSort] = useState<Sort>("newest");
+  const [query, setQuery] = useState("");
+  const [toneFilter, setToneFilter] = useState("");
   const [sim, setSim] = useState(false);  // simulated events (from a series' "Simulate a move") stay out of the live picture unless asked for
   const [sel, setSel] = useState<string | null>(null);    // the event picked with a click
   const [peek, setPeek] = useState<string | null>(null);  // the event the mouse rests on: shown until it leaves the list
@@ -191,8 +197,16 @@ export function EventsPage() {
   const noEvent = (recent.items ?? []).filter(f => f.status === "set_aside");
   const nSim = (events ?? []).filter(e => e.world !== "live").length;
   const shown = (events ?? []).filter(e => sim || e.world === "live");  // what the status filter counts
-  const rows = useMemo(() => shown.filter(e => show === "all" || e.status === show)
-    .sort((a, b) => sort === "impacts" ? b.hypotheses - a.hypotheses || (a.anchor < b.anchor ? 1 : -1) : (a.anchor < b.anchor ? 1 : -1)), [shown, show, sort]);
+  const rows = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return shown.filter(e => {
+      if (show !== "all" && e.status !== show) return false;
+      if (toneFilter && e.tone !== toneFilter) return false;
+      if (!q) return true;
+      const hay = [title(e), ...e.themes.map(themeLabel), ...e.places].join(" ").toLowerCase();
+      return hay.includes(q);
+    }).sort((a, b) => sort === "impacts" ? b.hypotheses - a.hypotheses || (a.anchor < b.anchor ? 1 : -1) : (a.anchor < b.anchor ? 1 : -1));
+  }, [shown, show, sort, query, toneFilter]);
   const reach = rows.filter(e => e.hypotheses > 0), none = rows.filter(e => e.hypotheses === 0);
   const cur = rows.find(e => e.event_id === peek) ?? rows.find(e => e.event_id === sel) ?? reach[0] ?? rows[0];
   const { details: ev, failed } = useEventDetails(shown, cur?.event_id, retry);
@@ -251,15 +265,25 @@ export function EventsPage() {
         </div>
         {status.connected && waiting > 0 && <InvestigateNowButton onDone={refresh} small />}
       </div>}
-      <div className="filters ev-filters">
+      <div className="eos-filterbar">
+        <div className="eos-search">
+          <Icon name="search" />
+          <input value={query} onChange={e => setQuery(e.target.value)} aria-label="Search events" placeholder="Search events, themes, or places…" />
+        </div>
+        <select className="eos-select" aria-label="Filter by tone" value={toneFilter} onChange={e => setToneFilter(e.target.value)}>
+          <option value="">All tones</option>
+          <option value="bad">Bad for you</option>
+          <option value="mixed">Mixed</option>
+          <option value="good">Good for you</option>
+          <option value="neutral">Neutral</option>
+        </select>
         <FlowFilter label="Which events" value={show} onChange={setShow} all={{ key: "all", label: "All", count: shown.length }}
           steps={[{ key: "open", label: "Open", count: shown.filter(e => e.status === "open").length }, { key: "closed", label: "Closed", count: shown.filter(e => e.status === "closed").length }]} />
-        {/* the groups already put events with impacts first: sorting changes something only when 2 or more could hit products */}
-        {reach.length > 1 && <label className="sortby ev-sort">Sort <select className="input" value={sort} onChange={e => setSort(e.target.value as Sort)}>
-          <option value="newest">Newest first</option><option value="impacts">Most possible impacts</option></select></label>}
-        {nSim > 0 && <label className="check ev-sort"><input type="checkbox" checked={sim} onChange={e => setSim(e.target.checked)} /> Also show {plural(nSim, "simulated event")} (from tests; not real)</label>}
+        {reach.length > 1 && <select className="eos-select" aria-label="Sort events" value={sort} onChange={e => setSort(e.target.value as Sort)}>
+          <option value="newest">Sort: Newest first</option><option value="impacts">Sort: Most possible impacts</option></select>}
+        {nSim > 0 && <label className="check ev-sort"><input type="checkbox" checked={sim} onChange={e => setSim(e.target.checked)} /> Simulated ({nSim})</label>}
         <span className="spacer" />
-        {!pipeline && (inProgress.length > 0 || noEvent.length > 0) && <Link className="ev-sort" to="/findings">See all findings</Link>}
+        {!pipeline && (inProgress.length > 0 || noEvent.length > 0) && <Link className="ev-sort" to="/findings">See all findings →</Link>}
       </div>
       {events === null ? (err == null && <InlineSkeleton />) : !rows.length || !cur ? (
         <Empty icon="events" title={show === "open" ? "No open events" : "No events here"} actions={<Link className="btn" to="/studio"><Icon name="studio" />Try a what-if in the Scenario Studio</Link>}>

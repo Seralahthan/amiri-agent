@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import "./styles/app.css";
 import "./styles/extra.css";
+import "./styles/enterprise-os.css";
 import { App } from "./App";
 import { RoleProvider, ToastProvider } from "./components/ui";
 

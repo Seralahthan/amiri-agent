@@ -92,10 +92,13 @@ function AlertLine({ a, ev, label, primary, onChange }: { a: AlertItem; ev?: Eve
       {a.status === "acknowledged" && <p className="ap-done"><Icon name="check" /><span><b>{a.acknowledged_by}</b> is on it{a.acknowledged_at ? `, ${ago(a.acknowledged_at, now)}` : ""}{a.ack_note ? `: “${a.ack_note}”` : ""}</span></p>}
       {a.status === "resolved" && <p className="ap-done ok"><Icon name="check" /><span>Resolved by <b>{isAgent(a.resolved_by) ? AGENT : a.resolved_by}</b>{a.resolved_at ? `, ${ago(a.resolved_at, now)}` : ""}{a.resolved_note ? `: “${a.resolved_note}”` : ""}</span></p>}
       {open && <div className="ap-x" id={`${id}-x`}>
-        <h3>Why AMIRI Agent expects this</h3>
-        <p className="dl-ai"><span className="dl-ai-chip"><b aria-hidden="true">AI</b>AMIRI Agent's assessment</span>
-          <span className="muted">Sizes and timing are estimates, checked against your own figures as they're published.</span></p>
-        <ul className="ap-why">{a.effects.map(e => <Impact key={e.hypothesis_id} e={e} />)}</ul>
+        <div className="eos-ai" style={{ marginBottom: 12 }}>
+          <div className="eos-ai-hd"><span className="eos-spark" aria-hidden="true">✦</span>Investigation Agent · Why AMIRI expects this</div>
+          <div className="eos-ai-bd">
+            <ul className="ap-why" style={{ margin: "4px 0 0" }}>{a.effects.map(e => <Impact key={e.hypothesis_id} e={e} />)}</ul>
+          </div>
+          <div className="eos-ai-meta"><span>Sizes and timing are estimates, validated against your own figures as published.</span></div>
+        </div>
         {a.top_finding && <p className="ap-src">{src && <Icon name={src.icon} />}<span>It started from {src ? `${src.label}: ` : ""}{article?.url
           ? <a href={article.url} target="_blank" rel="noreferrer">{a.top_finding}<Icon name="external" className="src-ext" /><span className="sr"> (opens the article)</span></a>
           : a.top_finding}</span></p>}
@@ -111,6 +114,8 @@ function AlertLine({ a, ev, label, primary, onChange }: { a: AlertItem; ev?: Eve
 export function AlertsPage() {
   const [show, setShow] = useState<Show>("new");
   const [team, setTeam] = useState("");
+  const [query, setQuery] = useState("");
+  const [levelFilter, setLevelFilter] = useState("");
   const [items, setItems] = useState<AlertItem[] | null>(null);
   const [sum, setSum] = useState<AlertSummary | null>(null);
   const [events, setEvents] = useState<Record<string, EventDetail>>({});
@@ -127,7 +132,17 @@ export function AlertsPage() {
   useEffect(() => setItems(null), [show, team]);  // another filter: wait for its list rather than filter the old one
   useEffect(() => { load(); const t = setInterval(load, 60_000); return () => clearInterval(t); }, [load]);
   // an alert acted on here leaves a filter it no longer matches at once, before the next load
-  const shown = useMemo(() => items && items.filter(a => show === "all" || a.status === show), [items, show]);
+  const shown = useMemo(() => {
+    if (!items) return null;
+    const q = query.trim().toLowerCase();
+    return items.filter(a => {
+      if (show !== "all" && a.status !== show) return false;
+      if (levelFilter && a.level !== levelFilter) return false;
+      if (!q) return true;
+      const hay = [a.title, a.owner, a.event_title, a.top_finding ?? "", ...a.effects.map(e => `${e.product} ${e.metric_name} ${e.chain_label}`)].join(" ").toLowerCase();
+      return hay.includes(q);
+    });
+  }, [items, show, query, levelFilter]);
   const nAt = (k: Show, owner = team) => sum?.by_team_status?.filter(r => (!owner || r.owner === owner) && (k === "all" || r.status === k)).reduce((n, r) => n + r.n, 0);
   // each alert's next check is on its event: one request per event on the page
   const eventIds = useMemo(() => [...new Set((shown ?? []).map(a => a.event_id))].sort().join(","), [shown]);
@@ -194,13 +209,23 @@ export function AlertsPage() {
         </HowItWorks>} />
       {err != null && <LoadError error={err} onRetry={load} what="the alerts" />}
 
-      {(items !== null || err == null) && <div className="filters ap-filters">
+      {(items !== null || err == null) && <div className="eos-filterbar">
+        <div className="eos-search">
+          <Icon name="search" />
+          <input value={query} onChange={e => setQuery(e.target.value)} aria-label="Search alerts" placeholder="Search alerts, products, teams, or events…" />
+        </div>
+        <select className="eos-select" aria-label="Filter by severity" value={levelFilter} onChange={e => setLevelFilter(e.target.value)}>
+          <option value="">All severities</option>
+          <option value="adverse">Confirmed</option>
+          <option value="developing">Showing early signs</option>
+          <option value="warning">Early warning</option>
+        </select>
+        {s && s.all_teams.length > 1 && <select className="eos-select" aria-label="Filter by team" value={team} onChange={e => setTeam(e.target.value)}>
+          <option value="">All teams ({s.all_teams.length})</option>
+          {s.all_teams.map(t => <option key={t} value={t}>{t} ({nAt(show, t)})</option>)}</select>}
         <FlowFilter toned label="Which alerts" value={show} onChange={setShow} all={{ key: "all", label: "All", count: nAt("all") }}
           steps={([["new", "To review", "queued"], ["acknowledged", "Acknowledged", "held"], ["resolved", "Resolved", "done"]] as const)
-            .map(([key, label, state]) => ({ key, label, count: nAt(key), state }))}
-          after={s && s.all_teams.length > 1 && <select className="ff-sel" aria-label="Filter by team" data-on={team ? "" : undefined} value={team} onChange={e => setTeam(e.target.value)}>
-            <option value="">All teams</option>
-            {s.all_teams.map(t => <option key={t} value={t}>{t} ({nAt(show, t)})</option>)}</select>} />
+            .map(([key, label, state]) => ({ key, label, count: nAt(key), state }))} />
       </div>}
 
       {shown === null ? (err == null && <div className="mt12"><ListSkeleton rows={3} /></div>)

@@ -256,6 +256,13 @@ export function OverviewPage() {
           <button className="btn btn--ghost btn--icon" type="button" aria-label="Refresh" onClick={load}><Icon name="refresh" /></button></>}
         help={<HowItWorks><p>The four numbers below follow the same steps for {i.name}: what AMIRI Agent watches, what it found in the last day, what it traced to your products, and who must act.</p></HowItWorks>} />
 
+      <div className="eos-ai" style={{ gridColumn: "1 / -1", marginTop: 14 }}>
+        <div className="eos-ai-hd"><span className="eos-spark" aria-hidden="true">✦</span>AMIRI Multi-Agent Synthesis · {i.name}</div>
+        <div className="eos-ai-bd">
+          <b>Monitors ({c.monitors_live} live)</b>, <b>Market Series ({c.series_watched})</b>, and <b>Radar ({o.radar.stories.filter(r => r.status === "sent").length} sent)</b> surfaced <b>{plural(f24, "finding")}</b> in the last 24h; <b>Investigation Agent</b> traced <b>{plural(c.effects_to_watch, "possible impact")}</b> across <b>{plural(c.open_events, "open event")}</b>{bad.length ? <> — led by <b>{eventTitle(bad[0])}</b></> : null}.
+        </div>
+      </div>
+
       {profile && <section className="ovx-map" aria-labelledby="ovx-map-h"><h2 id="ovx-map-h" className="sr">Where it's happening</h2>
         <p className="sr">{o.events.length ? `Open events by place: ${o.events.map(e => `${eventTitle(e)}${e.places.length ? ` (${e.places.map(p => names[p] ?? p).join(", ")})` : ""}`).join("; ")}.` : "No open events on the map."} Places where you operate: {Object.values(names).slice(0, 12).join(", ")}.</p>
         <ProfileMap profile={profile} height={mapH} compact layers={["footprint", "flows", "risks"]}

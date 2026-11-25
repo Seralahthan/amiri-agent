@@ -4,6 +4,8 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { connectApi, type CheckState, type CheckStatus, type Condition, type Connection, type Report, type Sample } from "../../api/connect";
+import { radarApi, type RadarStatus } from "../../api/radar";
+import { seriesApi, type SeriesStatus } from "../../api/series";
 import { FillFromJson } from "../../components/FillFromJson";
 import type { Candidate } from "../../components/fillJson";
 import { Icon } from "../../components/Icon";
@@ -32,6 +34,8 @@ export function DataConnectionsPage() {
   const [samples, setSamples] = useState<Sample[] | null>(null);
   const [report, setReport] = useState<Report | null>(null);
   const [history, setHistory] = useState<Awaited<ReturnType<typeof connectApi.checks>>>([]);
+  const [radarSt, setRadarSt] = useState<RadarStatus | null>(null);
+  const [seriesSt, setSeriesSt] = useState<SeriesStatus | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [checking, setChecking] = useState(false);
 
@@ -39,6 +43,8 @@ export function DataConnectionsPage() {
     try {
       const [c, s, h] = await Promise.all([connectApi.get(), connectApi.samples(), connectApi.checks()]);
       setConn(c); setSamples(s.items); setHistory(h);
+      radarApi.status().then(setRadarSt).catch(() => {});
+      seriesApi.status().then(setSeriesSt).catch(() => {});
       if (c.latest_check && (!report || report.check_id !== c.latest_check.check_id)) setReport(await connectApi.report(c.latest_check.check_id));
       setError(null);
     } catch (e) { setError(e); }
@@ -67,6 +73,28 @@ export function DataConnectionsPage() {
       <PageHeader title="Data connections" pills={<span className="badge b-info" title="The version this server implements">Spec {SPEC}</span>}
         status={conn.latest_check ? "Where AMIRI Agent reads your own figures to check each possible impact" : "No connection checked yet"}
         help={<p className="ph-about">AMIRI Agent checks each possible impact against your institution's own figures, read from a Metrics Spec reference API. Only that API is accepted. Connect it, run the check, then approve it and switch checks on.</p>} />
+      <div className="eos-ledger" style={{ marginBottom: 18 }}>
+        <div className="eos-ledger-cell">
+          <span className="eos-l-step">Validation API</span>
+          <span className="eos-l-val" style={{ color: conn.validation_enabled ? "var(--accent-ink)" : "var(--high-ink)" }}>{conn.validation_enabled ? "ON" : "OFF"}</span>
+          <span className="eos-l-meta">{conn.approved ? `Approved by ${conn.approved.by}` : "Not approved yet"}</span>
+        </div>
+        <div className="eos-ledger-cell">
+          <span className="eos-l-step">Radar Daily Runs</span>
+          <span className="eos-l-val">{radarSt ? `${radarSt.run_now.left}/${radarSt.run_now.limit}` : "—"}</span>
+          <span className="eos-l-meta">{radarSt?.connected ? "Check-now quota left" : "Not connected"}</span>
+        </div>
+        <div className="eos-ledger-cell">
+          <span className="eos-l-step">Twelve Data Credits</span>
+          <span className="eos-l-val">{seriesSt ? `${seriesSt.provider.credits.used_today}/${seriesSt.provider.credits.per_day}` : "—"}</span>
+          <span className="eos-l-meta">{seriesSt ? `${seriesSt.limits.used} of ${seriesSt.limits.max_series} series watched` : "Market provider"}</span>
+        </div>
+        <div className="eos-ledger-cell">
+          <span className="eos-l-step">Conformance Checks</span>
+          <span className="eos-l-val">{report ? `${report.summary.passed}/${report.summary.passed + report.summary.failed}` : "—"}</span>
+          <span className="eos-l-meta">{report ? report.headline : "Run check to verify API"}</span>
+        </div>
+      </div>
       <div className="col gap16">
         <ConnectionCard conn={conn} samples={samples} checking={checking} onSaved={c => { setConn(c); setReport(null); load(); }}
           onCheck={run} onApprove={approve} onValidation={validation} />

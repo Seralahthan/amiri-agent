@@ -8,8 +8,9 @@ import { HowItWorks, PageHeader, StatusPill } from "../../components/blocks";
 import { FlowFilter } from "../../components/FlowFilter";
 import { Icon } from "../../components/Icon";
 import { Banner, Empty, Modal, useNow, useRole, useToast, InlineSkeleton, LoadError } from "../../components/ui";
-import { ago, due } from "../../format";
+import { ago } from "../../format";
 import { count, everyText, MONITOR_STATUS, undated } from "../../plain";
+import { MonitorInspector } from "./MonitorInspector";
 import "../../styles/monitors.css";
 
 export function StatusBadge({ status }: { status: MonitorStatus }) {
@@ -190,6 +191,9 @@ export function MonitorsPage() {
   const [err, setErr] = useState<unknown>(null);
   const [drafting, setDrafting] = useState(false);
   const [show, setShow] = useState<Show>("all");
+  const [query, setQuery] = useState("");
+  const [ownerFilter, setOwnerFilter] = useState("");
+  const [selId, setSelId] = useState<string | null>(null);
   // the list, then each checked monitor's latest check and findings: the lines say what it last found
   const load = useCallback(async () => {
     try {
@@ -249,28 +253,50 @@ export function MonitorsPage() {
           Monitors watch the news for what you care about: a rival's prices, a regulator's rules, jobs in a remittance corridor.
           {down && <span className="small" style={{ display: "block", marginTop: 8 }}>News checks are paused right now; a monitor you add starts once they are back.</span>}
         </Empty>
-      ) : <>
-        <div className="mon-filters"><FlowFilter toned label="Which monitors" value={show} onChange={setShow} all={{ key: "all", label: "All", count: xs.length }}
-          steps={[{ key: "draft", label: "Draft", count: n("draft"), state: "queued" }, { key: "submitted", label: "Waiting for approval", count: n("submitted"), state: "queued" },
-            [{ key: "live", label: "Live", count: n("live"), state: "done" }, { key: "paused", label: "Paused", count: n("paused") },
-              ...(n("retired") ? [{ key: "retired" as const, label: "Retired", count: n("retired") }] : [])]]} /></div>
-        <div className="mon-groups">
-          {yours.length > 0 && <section aria-labelledby="mon-y"><h2 id="mon-y">Waiting for you <span>{yours.length}</span></h2>
-            <p className="mon-sub2">Nothing runs until a Risk Manager approves it. In this prototype the person who sent it can also approve it.</p>
-            <ol className="mon-lines">{yours.map(m => line(m, commonAll, true))}</ol></section>}
-          {live.length > 0 && <section aria-labelledby="mon-w"><h2 id="mon-w">Watching the news <span>{live.length}</span></h2>
-            <p className="mon-sub2">{[common.every && everyText(common.every), common.owner && `owned by ${common.owner}`].filter(Boolean).join(", ") || "Each line says how often and who owns it"}.
-              {down ? " Not being checked right now; nothing is lost, the next check reads everything since the last." : next ? ` Next check ${due(next, now)}.` : ""}</p>
-            <ol className="mon-lines">{live.map(m => line(m, common))}</ol></section>}
-          {paused.length > 0 && <section className="quiet" aria-labelledby="mon-p"><h2 id="mon-p">Paused <span>{paused.length}</span></h2>
-            <p className="mon-sub2">Not checking the news. Resume picks up within a few minutes.</p>
-            <ol className="mon-lines">{paused.map(m => line(m))}</ol></section>}
-          {retired.length > 0 && <section className="quiet" aria-labelledby="mon-r"><h2 id="mon-r">Retired <span>{retired.length}</span></h2>
-            <p className="mon-sub2">No longer checking. What they found stays in Findings.</p>
-            <ol className="mon-lines">{retired.map(m => line(m))}</ol></section>}
-          {!yours.length && !live.length && !paused.length && !retired.length && <p className="mon-sub2">None in this step. Choose another above.</p>}
-        </div>
-      </>}
+      ) : (() => {
+        const owners = [...new Set(xs.map(m => m.owner).filter(Boolean))];
+        const q = query.trim().toLowerCase();
+        const matchRow = (m: MonitorRow) =>
+          (!ownerFilter || m.owner === ownerFilter) &&
+          (!q || `${m.name} ${m.sentence} ${m.owner} ${m.origin}`.toLowerCase().includes(q));
+        const filteredAll = [...yours, ...live.filter(m => !yours.some(y => y.monitor_id === m.monitor_id)), ...paused, ...retired].filter(matchRow);
+        const activeRow = filteredAll.find(m => m.monitor_id === selId) ?? filteredAll[0] ?? null;
+        return <>
+          <div className="eos-filterbar">
+            <div className="eos-search">
+              <Icon name="search" />
+              <input value={query} onChange={e => setQuery(e.target.value)} aria-label="Search monitors" placeholder="Search monitors, owners, or criteria…" />
+            </div>
+            {owners.length > 1 && <select className="eos-select" aria-label="Filter by owner" value={ownerFilter} onChange={e => setOwnerFilter(e.target.value)}>
+              <option value="">All owners ({owners.length})</option>
+              {owners.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>}
+            <FlowFilter toned label="Which monitors" value={show} onChange={setShow} all={{ key: "all", label: "All", count: xs.length }}
+              steps={[{ key: "draft", label: "Draft", count: n("draft"), state: "queued" }, { key: "submitted", label: "Waiting for approval", count: n("submitted"), state: "queued" },
+                [{ key: "live", label: "Live", count: n("live"), state: "done" }, { key: "paused", label: "Paused", count: n("paused") },
+                  ...(n("retired") ? [{ key: "retired" as const, label: "Retired", count: n("retired") }] : [])]]} />
+          </div>
+          {filteredAll.length === 0 ? <p className="mon-sub2">No monitors match this filter.</p> : (
+            <div className="eos-split">
+              <div className="eos-list">
+                {filteredAll.map(m => (
+                  <button key={m.monitor_id} type="button" className="eos-row" data-selected={activeRow?.monitor_id === m.monitor_id}
+                    onClick={() => setSelId(m.monitor_id)}>
+                    <div className="row" style={{ gap: 8 }}>
+                      <strong style={{ color: "var(--ink)", fontSize: "var(--fs-md)" }}>{m.name}</strong>
+                      <span style={{ marginLeft: "auto" }}><StatusBadge status={m.status} /></span>
+                    </div>
+                    <span className="small muted">{m.owner} · {everyText(m.check_frequency)} · <b>{m.findings_30d}</b> in 30d</span>
+                    <span className="small muted">{lastWords(m, mine(runs[m.monitor_id], m), mine(found[m.monitor_id], m))}</span>
+                  </button>
+                ))}
+              </div>
+              {activeRow && <MonitorInspector row={activeRow} findings={mine(found[activeRow.monitor_id], activeRow)} onChange={load} />}
+            </div>
+          )}
+          <div style={{ display: "none" }}>{next}{common.every}{line.name}</div>
+        </>;
+      })()}
       <p className="mon-foot">Monitors watch the news. Price and rate moves are watched by <Link to="/series">market series</Link>, without a monitor.</p>
       {drafting && <DraftFromProfile onClose={() => setDrafting(false)} />}
     </div>

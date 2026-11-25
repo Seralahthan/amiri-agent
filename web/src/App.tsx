@@ -7,6 +7,8 @@ import { ago, fullNow, setZone, ZONE_LABEL } from "./format";
 import { cap } from "./plain";
 import { OVERVIEW_EVENT, overviewApi, type Overview } from "./api/overview";
 import { SystemStatus } from "./components/SystemStatus";
+import { CommandPalette } from "./components/CommandPalette";
+import { TelemetryStrip } from "./components/TelemetryStrip";
 import "./styles/shell.css";
 import { InstitutionPage, NewInstitutionPage } from "./pages/institution/InstitutionPage";
 import { SetupWizard } from "./pages/institution/SetupWizard";
@@ -30,13 +32,11 @@ import { SpecPage } from "./pages/spec/Spec";
 import { SpecPrintPage } from "./pages/spec/SpecPrint";
 import { alertsApi, type AlertSummary } from "./api/alerts";
 
-// The menu follows the day: what needs me, what AMIRI Agent found, what it watches, who I am, and the what-if tool.
+// Enterprise Risk OS navigation groups (crisp institutional hierarchy)
 const GROUPS: [string, string[]][] = [
-  ["Today", ["/home", "/alerts"]],
-  ["What it found", ["/events", "/findings"]],
-  ["What it watches", ["/radar", "/monitors", "/series"]],
-  ["Your institution", ["/institution", "/spec"]],
-  ["Try it", ["/studio"]],
+  ["Risk Workspace", ["/home", "/alerts", "/events", "/findings"]],
+  ["Surveillance", ["/monitors", "/radar", "/series"]],
+  ["Governance & Sandbox", ["/institution", "/studio", "/spec"]],
 ];
 
 const NAV: Record<Role, [string, string, string][]> = {
@@ -190,9 +190,34 @@ function Installed() {
   return <InstallationCtx.Provider value={inst}><Frame inst={inst} /></InstallationCtx.Provider>;
 }
 
+function useProjectorScale() {
+  const [projector, setProjector] = useState<boolean>(() => {
+    try { return localStorage.getItem("amiri.scale") === "projector"; } catch { return false; }
+  });
+  useEffect(() => {
+    if (projector) document.documentElement.dataset.scale = "projector";
+    else delete document.documentElement.dataset.scale;
+  }, [projector]);
+  const toggle = () => {
+    const next = !projector;
+    setProjector(next);
+    try { localStorage.setItem("amiri.scale", next ? "projector" : "standard"); } catch { /* private mode */ }
+  };
+  return { projector, toggle };
+}
+
 function Frame({ inst }: { inst: Installation }) {
   const { role, setRole } = useRole();
   const { dark, toggle: toggleTheme } = useTheme();
+  const { projector, toggle: toggleProjector } = useProjectorScale();
+  const [cmdOpen, setCmdOpen] = useState(false);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setCmdOpen(o => !o); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const now = useNow(30_000);
   const nav = NAV[role].filter(([, , to]) => BUILT.has(to));  // a page that isn't built isn't offered
   const said = useRouteA11y();
@@ -253,13 +278,23 @@ function Frame({ inst }: { inst: Installation }) {
           </button>
           <span id="world-why" className={`world-why${why ? " open" : ""}`}>{live ? `${live.why} ` : ""}Times in {ZONE_LABEL}.</span>
         </span>
+        <button type="button" className="eos-cmd-btn" onClick={() => setCmdOpen(true)} aria-label="Search AMIRI Agent">
+          <Icon name="search" />
+          <span>Search events, series, Radar…</span>
+          <span className="eos-kbd">⌘K</span>
+        </button>
         <span className="spacer" />
+        <button className="btn btn--ghost btn--sm" type="button" onClick={toggleProjector}
+          aria-pressed={projector} title="Toggle larger text for 10m projector legibility">
+          {projector ? "10m Text: ON" : "10m Text"}
+        </button>
         <span className="seg" role="group" aria-label="View as">
           <button type="button" aria-pressed={role === "risk_manager"} onClick={() => setRole("risk_manager")}>Risk Manager</button>
           <button type="button" aria-pressed={role === "platform_admin"} onClick={() => setRole("platform_admin")}>Platform Admin</button>
         </span>
         <button className="btn btn--ghost btn--icon themebtn" type="button" aria-label={dark ? "Switch to light" : "Switch to dark"} onClick={toggleTheme}><Icon name={dark ? "sun" : "moon"} /></button>
       </header>
+      <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} ov={ov} />
       {menu && <div className="scrim" onClick={() => setMenu(false)} />}
       <div className="body">
         <aside className="side" id="sidenav" aria-label="Menu" data-open={menu}>
@@ -295,6 +330,7 @@ function Frame({ inst }: { inst: Installation }) {
           </div>
         </aside>
         <main className="main" id="main" tabIndex={-1}>
+          <TelemetryStrip ov={ov} now={now} down={down} />
           {inst.notes.map(n => <div key={n} className="banner warn" style={{ margin: "16px 24px 0" }}><Icon name="warn" /><div>{n}</div></div>)}
           <Routes>
             <Route path="/" element={<Navigate to="/home" replace />} />
@@ -326,6 +362,13 @@ function Frame({ inst }: { inst: Installation }) {
           </Routes>
         </main>
       </div>
+      <nav className="eos-mobnav" aria-label="Quick navigation">
+        <NavLink to="/home"><Icon name="home" /><span>Home</span></NavLink>
+        <NavLink to="/alerts"><Icon name="alert" /><span>Alerts</span></NavLink>
+        <NavLink to="/events"><Icon name="events" /><span>Events</span></NavLink>
+        <NavLink to="/monitors"><Icon name="monitor" /><span>Watch</span></NavLink>
+        <NavLink to="/institution"><Icon name="bank" /><span>Bank</span></NavLink>
+      </nav>
     </div>
   );
 }

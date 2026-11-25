@@ -37,13 +37,23 @@ export function FindingsPage() {
   const { items, err, loadedAt, load } = useRecentFindings();
   const { status, reload } = useInvestigationStatus();
   const [show, setShow] = useState<Show>("all");
+  const [query, setQuery] = useState("");
+  const [sourceFilter, setSourceFilter] = useState("");
   const [events, setEvents] = useState<Record<string, EventRow>>({});
   const [open, setOpen] = useState<string | null>(null);         // the finding whose line is open
   const [all, setAll] = useState<Record<string, boolean>>({});   // sections showing every finding
   const [checking, setChecking] = useState<string | null>(null);
   useEffect(() => { investigationApi.events().then(xs => setEvents(Object.fromEntries(xs.map(e => [e.event_id, e])))).catch(() => {}); }, [items]);
   const refresh = () => { load(); reload(); };
-  const xs = (items ?? []) as F[];
+  const allXs = (items ?? []) as F[];
+  const xs = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return allXs.filter(f => {
+      if (sourceFilter && f.source !== sourceFilter) return false;
+      if (!q) return true;
+      return `${f.title} ${f.explanation} ${f.source}`.toLowerCase().includes(q);
+    });
+  }, [allXs, query, sourceFilter]);
   const n = (s: Show) => xs.filter(f => s === "all" || f.status === s).length;
 
   const pending = xs.filter(f => (f.status === "new" || f.status === "grouped") && (show === "all" || show === f.status));
@@ -127,9 +137,21 @@ export function FindingsPage() {
         <Banner kind="info" icon="info" action={<InvestigateNowButton onDone={refresh} small />}>
           <b>{count(status.findings_waiting, "finding")} waiting</b> to be investigated{nextBatch ? `: the next batch goes ${nextBatch}` : ""}.
         </Banner>)}
-      <div className="fd-filters"><FlowFilter label="Which findings" value={show} onChange={setShow} all={{ key: "all", label: "All", count: n("all") }}
-        steps={[{ key: "new", label: "Waiting", count: n("new"), state: "queued" }, { key: "grouped", label: "Being investigated", count: n("grouped"), state: "busy" },
-          [{ key: "linked", label: "In an event", count: n("linked"), state: "done" }, { key: "set_aside", label: "No impact found", count: n("set_aside") }]]} /></div>
+      <div className="eos-filterbar">
+        <div className="eos-search">
+          <Icon name="search" />
+          <input value={query} onChange={e => setQuery(e.target.value)} aria-label="Search findings" placeholder="Search findings, explanations, or sources…" />
+        </div>
+        <select className="eos-select" aria-label="Filter by source" value={sourceFilter} onChange={e => setSourceFilter(e.target.value)}>
+          <option value="">All sources</option>
+          <option value="monitor">News monitor</option>
+          <option value="radar">Radar</option>
+          <option value="timeseries">Market series</option>
+        </select>
+        <FlowFilter label="Which findings" value={show} onChange={setShow} all={{ key: "all", label: "All", count: n("all") }}
+          steps={[{ key: "new", label: "Waiting", count: n("new"), state: "queued" }, { key: "grouped", label: "Being investigated", count: n("grouped"), state: "busy" },
+            [{ key: "linked", label: "In an event", count: n("linked"), state: "done" }, { key: "set_aside", label: "No impact found", count: n("set_aside") }]]} />
+      </div>
 
       {items === null ? (err == null && <ListSkeleton rows={5} />) : !shown ? (
         <Empty icon="search" title={show === "all" ? `Nothing found in the last ${DAYS} days` : "None in this step"}

@@ -87,6 +87,9 @@ function SeriesCard({ s, onChange }: { s: Series; onChange: (s: Series) => void 
 export function SeriesList() {
   const { role } = useRole();
   const [items, setItems] = useState<Series[] | null>(null);
+  const [query, setQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
+  const [stateFilter, setStateFilter] = useState("");
   const [error, setError] = useState<unknown>(null);
   const [adding, setAdding] = useState(false);
   const { status, reload: reloadStatus } = useSeriesStatus();
@@ -123,7 +126,38 @@ export function SeriesList() {
           {isAdmin ? "Add the exchange rates and prices that matter to your institution." : "A Platform Admin adds the series AMIRI Agent watches."}
         </Empty></div>
       )}
-      {items && items.length > 0 && <div className="seriesgrid mt12">{[...items].sort((a, b) => concern(a) - concern(b)).map(s => <SeriesCard key={s.series_id} s={s} onChange={replace} />)}</div>}
+      {items && items.length > 0 && (() => {
+        const types = [...new Set(items.map(s => s.instrument?.type).filter(Boolean) as string[])];
+        const q = query.trim().toLowerCase();
+        const filtered = [...items].sort((a, b) => concern(a) - concern(b)).filter(s => {
+          if (typeFilter && (s.instrument?.type ?? "") !== typeFilter) return false;
+          if (stateFilter && s.state !== stateFilter) return false;
+          if (!q) return true;
+          return `${s.symbol} ${s.name} ${s.instrument?.type ?? ""} ${s.places.join(" ")}`.toLowerCase().includes(q);
+        });
+        return <>
+          <div className="eos-filterbar">
+            <div className="eos-search">
+              <Icon name="search" />
+              <input value={query} onChange={e => setQuery(e.target.value)} aria-label="Search market series" placeholder="Search symbol, currency, or commodity (e.g. USD/AED, Gold)…" />
+            </div>
+            {types.length > 0 && <select className="eos-select" aria-label="Filter by asset type" value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
+              <option value="">All types</option>
+              {types.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>}
+            <select className="eos-select" aria-label="Filter by state" value={stateFilter} onChange={e => setStateFilter(e.target.value)}>
+              <option value="">All states</option>
+              <option value="moved">Unusual move</option>
+              <option value="normal">Normal</option>
+              <option value="stale">Late / stale</option>
+              <option value="paused">Paused</option>
+            </select>
+          </div>
+          {filtered.length === 0
+            ? <Empty icon="series" title="No matching symbols">Try clearing your symbol search or type filter.</Empty>
+            : <div className="seriesgrid mt12">{filtered.map(s => <SeriesCard key={s.series_id} s={s} onChange={replace} />)}</div>}
+        </>;
+      })()}
       {adding && <AddSeriesModal left={left} onClose={() => setAdding(false)}
         onAdded={s => { setAdding(false); setItems(xs => [...(xs ?? []), s]); reloadStatus(); }} />}
     </div>
