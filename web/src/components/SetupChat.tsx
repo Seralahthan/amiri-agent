@@ -352,12 +352,19 @@ export function SetupChat({ institutionId, onTrack, onApplied, at, askKey = 0 }:
       busy={busy} onAnswer={(qid, options) => send({ answer: { question_id: qid, options } })} onDecided={decided} />);
   }
 
+  const agentState: "working" | "live" | "starting" | "offline" =
+    status?.connected ? (working ? "working" : "live")
+    : status?.starting ? "starting"
+    : "offline";
+
   return (
-    <div className="eos-agent-inner" data-working={working ? "true" : "false"}>
+    <div className="eos-agent-inner" data-working={working ? "true" : "false"} data-agent-state={agentState}>
       <div className="chathead eos-agent-hd">
         <div className="row" style={{ gap: 8, width: "100%" }}>
           <span className="eos-spark" aria-hidden="true">✦</span>
           <b style={{ fontSize: 13.5, lineHeight: 1.15 }}>Setup agent</b>
+          {agentState === "offline" && <span className="eos-agent-pill offline">Offline</span>}
+          {agentState === "starting" && <span className="eos-agent-pill starting">Starting</span>}
           <span className="spacer" />
           {shownTracks.length > 0 && (
             <SelectMenu

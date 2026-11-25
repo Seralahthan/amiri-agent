@@ -643,7 +643,7 @@ input[type="range"] { accent-color: var(--accent-strong); }
   .eos-list[data-staging="true"] .eos-grp[data-focused="false"] { filter: none; opacity: 0.72; }
 }
 
-/* Floating ✦ Setup Agent Panel with Refined Running Forest Emerald Orbital Shimmer */
+/* Floating ✦ Setup Agent Panel — State-Aware Orbital Shimmer (Emerald when live, Amber when starting, Calm Hairline when offline) */
 @property --eos-angle {
   syntax: "<angle>";
   initial-value: 0deg;
@@ -660,6 +660,13 @@ input[type="range"] { accent-color: var(--accent-strong); }
   padding: 1.5px;
   border: 0 !important;
   border-radius: 15px;
+  background: var(--hairline-2);
+  box-shadow: 0 10px 28px rgb(16 22 19 / 0.06), 0 2px 6px rgb(16 22 19 / 0.04);
+  overflow: hidden;
+  transition: box-shadow 220ms var(--ease-out), background 220ms var(--ease-out);
+}
+.chatside.eos-agent-float:has([data-agent-state="live"]),
+.chatside.eos-agent-float:has([data-agent-state="working"]) {
   background: conic-gradient(
     from var(--eos-angle),
     var(--hairline-2) 0deg,
@@ -669,13 +676,24 @@ input[type="range"] { accent-color: var(--accent-strong); }
     oklch(76% 0.17 152) 348deg,
     var(--hairline-2) 360deg
   );
-  box-shadow: 0 12px 32px rgb(14 90 55 / 0.10), 0 2px 8px rgb(16 22 19 / 0.05);
+  box-shadow: 0 12px 32px rgb(14 90 55 / 0.11), 0 2px 8px rgb(16 22 19 / 0.05);
   animation: eos-orbit-spin 7s linear infinite;
-  overflow: hidden;
 }
-.chatside.eos-agent-float:has([data-working="true"]) {
+.chatside.eos-agent-float:has([data-agent-state="working"]) {
   animation-duration: 2.2s;
   box-shadow: 0 12px 36px rgb(19 122 71 / 0.18), 0 2px 8px rgb(16 22 19 / 0.06);
+}
+.chatside.eos-agent-float:has([data-agent-state="starting"]) {
+  background: conic-gradient(
+    from var(--eos-angle),
+    var(--hairline-2) 0deg,
+    var(--hairline-2) 250deg,
+    color-mix(in oklch, var(--high) 55%, transparent) 295deg,
+    var(--high) 335deg,
+    var(--hairline-2) 360deg
+  );
+  box-shadow: 0 10px 28px rgb(180 120 20 / 0.11), 0 2px 8px rgb(16 22 19 / 0.05);
+  animation: eos-orbit-spin 3.5s linear infinite;
 }
 .eos-agent-inner {
   height: 100%; min-height: 0;
@@ -684,6 +702,37 @@ input[type="range"] { accent-color: var(--accent-strong); }
   border-radius: 13.5px;
   overflow: hidden;
 }
+.eos-agent-inner[data-agent-state="offline"] .eos-spark {
+  background: var(--sunken);
+  color: var(--ink-3);
+  border: 1px solid var(--hairline-2);
+}
+.eos-agent-inner[data-agent-state="starting"] .eos-spark {
+  background: var(--high-soft);
+  color: var(--high-ink);
+  border: 1px solid color-mix(in oklch, var(--high) 35%, transparent);
+}
+.eos-agent-pill {
+  display: inline-flex; align-items: center; padding: 2px 7px; border-radius: 999px;
+  font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em;
+}
+.eos-agent-pill.offline { background: var(--sunken); color: var(--ink-3); border: 1px solid var(--hairline-2); }
+.eos-agent-pill.starting { background: var(--high-soft); color: var(--high-ink); border: 1px solid color-mix(in oklch, var(--high) 35%, transparent); }
+
+/* Collapsible Institution Section Header */
+.eos-sec-toggle {
+  display: inline-flex; align-items: center; gap: 8px; min-width: 0;
+  padding: 2px 4px 2px 0; border: 0; background: transparent; cursor: pointer;
+  color: inherit; text-align: left;
+  transition: color 160ms var(--ease-out);
+}
+.eos-sec-toggle:hover h2, .eos-sec-toggle:hover .eos-sec-chev { color: var(--accent); }
+.eos-sec-chev {
+  width: 14px; height: 14px; flex: none; color: var(--ink-3);
+  transition: transform 180ms var(--ease-out), color 160ms var(--ease-out);
+}
+.eos-sec-chev.is-closed { transform: rotate(-90deg); }
+.card.is-collapsed > .hd { border-bottom-color: transparent !important; padding-bottom: 10px; }
 .eos-agent-hd {
   background: var(--surface);
   padding: 11px 13px;

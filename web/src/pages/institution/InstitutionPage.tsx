@@ -1,6 +1,6 @@
 // The Institution page (ongoing edits) and its shared loading. Everything here works
 // without the assistant: forms, suggestion pickers and link grids on the profile API.
-import { Fragment, useCallback, useContext, useEffect, useState } from "react";
+import { Fragment, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { api, ApiError } from "../../api/client";
 import { inst, type HistoryRow, type InstitutionSummary, type Item, type Profile, type Readiness } from "../../api/institutions";
@@ -15,7 +15,7 @@ import { cap, words } from "../../plain";
 import { PlaceName, useLoad } from "./fields";
 import { InstitutionFields, InstitutionModal, LABELS, splitErrors, useHiddenErrors, type Ctx } from "./forms";
 import { ProfileMap } from "./ProfileMap";
-import { LinkGrid, SectionList } from "./sections";
+import { LinkGrid, SectionList, SectionToggle } from "./sections";
 import { DraftFromProfile } from "../monitors/Monitors";
 import "../../styles/setup.css";
 
@@ -178,6 +178,21 @@ function BeforeAfter({ r }: { r: HistoryRow }) {
   );
 }
 
+function CollapsibleCard({ title, count, sub, right, children, defaultCollapsed = false }: {
+  title: ReactNode; count?: number; sub?: ReactNode; right?: ReactNode; children: ReactNode; defaultCollapsed?: boolean;
+}) {
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  return (
+    <div className={`card${collapsed ? " is-collapsed" : ""}`}>
+      <div className="hd">
+        <SectionToggle title={title} count={count} sub={sub} collapsed={collapsed} onToggle={() => setCollapsed(c => !c)} />
+        {right && <><span className="spacer" />{right}</>}
+      </div>
+      {!collapsed && children}
+    </div>
+  );
+}
+
 function History({ id, pv, onChanged, readOnly, names }: { id: string; pv: number; onChanged: () => void; readOnly: boolean; names: Record<string, string | null> }) {
   const toast = useToast();
   const [rows, setRows] = useState<HistoryRow[]>([]);
@@ -202,8 +217,7 @@ function History({ id, pv, onChanged, readOnly, names }: { id: string; pv: numbe
   };
   useEffect(() => { inst.history(id).then(r => { setRows(r.items); setNext(r.next_before); }).catch(() => {}); }, [id, pv]);
   return (
-    <div className="card">
-      <div className="hd"><h2>Every change</h2><span className="small muted">what changed, when, and who made it (a form, the Setup agent, an import)</span></div>
+    <CollapsibleCard title="Every change" count={batches.length} sub="what changed, when, and who made it">
       <div className="tblwrap"><table className="tbl hist">
         <thead><tr><th>When</th><th>What changed</th><th>By</th><th><span className="sr">Actions</span></th></tr></thead>
         <tbody>{batches.map(b => { const r = b[0], k = r.batch_id; return (<Fragment key={k}>
@@ -227,7 +241,7 @@ function History({ id, pv, onChanged, readOnly, names }: { id: string; pv: numbe
         {undo.valid ? <ul className="small">{undo.changes.map((c, k) => { const w = changeWords(c, "propose", names); return <li key={k}>{c.op === "create" ? "Add back" : c.op === "delete" ? "Remove" : "Restore"} {w.name ? <b>{w.name}</b> : SECTION_ONE[c.section] ?? c.section}{w.name ? ` (${SECTION_ONE[c.section] ?? c.section})` : ""}</li>; })}</ul>
           : <div className="rawerr">Can't be undone as it stands: {undo.errors.map(e => e.message).join("; ")}</div>}
       </Modal>}
-    </div>
+    </CollapsibleCard>
   );
 }
 
@@ -258,19 +272,20 @@ function AgentsView({ id, pv, names, regulators }: { id: string; pv: number; nam
   return (
     <div className="col gap16">
       <p className="agents-lead">Radar reads news about these places, topics and names. Code works them out from your profile (version {c.profile_version}); the monitors, the investigation and the Setup agent read the same profile.</p>
-      <div className="card"><div className="hd"><h2>Places Radar watches</h2><span className="count">{s.places.length}</span></div>
+      <CollapsibleCard title="Places Radar watches" count={s.places.length}>
         <div className="tblwrap"><table className="tbl agents-tbl">
           <thead><tr><th>Place</th><th>Why it is watched</th></tr></thead>
           <tbody>{s.places.map((p: string) => (
             <tr key={p}><td className="strong"><PlaceName code={p} names={names} /></td>
               <td><ul className="why">{(s.why?.[p] ?? []).map((w: string, k: number) => { const [tag, text] = whyParts(w, names); return (
                 <li key={k}>{tag && <span className="badge b-noeffect">{tag}</span>}<span>{text}</span></li>); })}</ul></td></tr>))}</tbody>
-        </table></div></div>
-      <div className="grid2">
-        <div className="card"><div className="hd"><h2>Topics</h2></div><div className="bd"><div className="row wrap" style={{ gap: 6 }}>
-          {s.themes.map((t: string) => <span key={t} className="chip">{THEME_WORDS[t] ?? t}</span>)}</div></div></div>
-        <div className="card"><div className="hd"><h2>Names</h2></div><div className="bd"><div className="row wrap" style={{ gap: 6 }}>
-          {s.actors.map((a: string) => <span key={a} className="chip">{actorName(a)}</span>)}</div></div></div>
+        </table></div>
+      </CollapsibleCard>
+      <div className="grid2" style={{ alignItems: "start" }}>
+        <CollapsibleCard title="Topics" count={s.themes.length}><div className="bd"><div className="row wrap" style={{ gap: 6 }}>
+          {s.themes.map((t: string) => <span key={t} className="chip">{THEME_WORDS[t] ?? t}</span>)}</div></div></CollapsibleCard>
+        <CollapsibleCard title="Names" count={s.actors.length}><div className="bd"><div className="row wrap" style={{ gap: 6 }}>
+          {s.actors.map((a: string) => <span key={a} className="chip">{actorName(a)}</span>)}</div></div></CollapsibleCard>
       </div>
       {role === "platform_admin" && <div className="card"><div className="hd"><h2>The full context</h2><span className="spacer" /><button className="btn btn--sm" type="button" onClick={() => setRaw(!raw)}>{raw ? "Hide" : "Show"} JSON</button></div>
         {raw && <div className="bd"><pre className="mono small" style={{ whiteSpace: "pre-wrap", margin: 0, maxHeight: 520, overflow: "auto" }}>{JSON.stringify(c, null, 2)}</pre></div>}</div>}
@@ -396,17 +411,17 @@ export function InstitutionPage() {
             </Link>
           </div>
           <div className="eos-focal"><ProfileMap profile={profile} height={320} title={mapTitle(profile)} /></div>
-          <div className="grid2">
-            <div className="card"><div className="hd"><h2>Ready to go live?</h2></div><div className="bd"><ReadinessList r={readiness} onFix={goFix} /></div></div>
-            <div className="card"><div className="hd"><h2>In the profile</h2></div><div className="bd"><div className="kv">
+          <div className="grid2" style={{ alignItems: "start" }}>
+            <CollapsibleCard title="Ready to go live?" count={readiness.checks.length}><div className="bd"><ReadinessList r={readiness} onFix={goFix} /></div></CollapsibleCard>
+            <CollapsibleCard title="In the profile"><div className="bd"><div className="kv">
               {Object.entries(LABELS).map(([s, l]) => <Fragment key={s}><div className="k">{l.many}</div><div className="v"><Link to={`/institution/${TAB_OF_SECTION[s]}`}>{i.counts[s as keyof typeof i.counts]}</Link></div></Fragment>)}
               <div className="k">Owns risk decisions</div><div className="v">{i.governance_body ?? "—"}</div>
               <div className="k">Settles abroad in</div><div className="v">{i.clearing_currencies?.join(", ") || "—"}</div>
               <div className="k">Profile version</div><div className="v">{i.profile_version} · changed {dayTime(i.updated_at)}</div>
-            </div></div></div>
+            </div></div></CollapsibleCard>
           </div>
-          {readiness.warnings.length > 0 && <div className="card"><div className="hd"><h2>Worth a look</h2></div><div className="bd col" style={{ gap: 6 }}>
-            {readiness.warnings.map((w, k) => <div key={k} className="small"><span className="badge b-warn">{(w.section ?? "").replace(/-/g, " ")}</span> {w.message}</div>)}</div></div>}
+          {readiness.warnings.length > 0 && <CollapsibleCard title="Worth a look" count={readiness.warnings.length}><div className="bd col" style={{ gap: 6 }}>
+            {readiness.warnings.map((w, k) => <div key={k} className="small"><span className="badge b-warn">{(w.section ?? "").replace(/-/g, " ")}</span> {w.message}</div>)}</div></CollapsibleCard>}
         </div>;
       })()}
       {tab === "customers" && <div className="col gap16">
