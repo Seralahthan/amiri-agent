@@ -1,6 +1,6 @@
 // Monitors: the list, the status badges and actions shared with the monitor page, and
 // "Draft from the profile" (code fills the sentence, lines and chips from a profile item).
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ApiError } from "../../api/client";
 import { EVERY, monitorsApi, type CheckRow, type Draftable, type MonitorFinding, type MonitorRow, type MonitorsStatus, type MonitorStatus } from "../../api/monitors";
@@ -194,6 +194,11 @@ export function MonitorsPage() {
   const [query, setQuery] = useState("");
   const [ownerFilter, setOwnerFilter] = useState("");
   const [selId, setSelId] = useState<string | null>(null);
+  const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
+  const [scrollGroup, setScrollGroup] = useState<string | null>(null);
+  const hoverTimer = useRef<number>(0);
+  const scrollTimer = useRef<number>(0);
+  useEffect(() => () => { window.clearTimeout(hoverTimer.current); window.clearTimeout(scrollTimer.current); }, []);
   // the list, then each checked monitor's latest check and findings: the lines say what it last found
   const load = useCallback(async () => {
     try {
@@ -266,8 +271,42 @@ export function MonitorsPage() {
         const matchRow = (m: MonitorRow) =>
           (!ownerFilter || m.owner === ownerFilter) &&
           (!q || `${m.name} ${m.sentence} ${m.owner} ${m.origin}`.toLowerCase().includes(q));
-        const filteredAll = [...yours, ...live.filter(m => !yours.some(y => y.monitor_id === m.monitor_id)), ...paused, ...retired].filter(matchRow);
+        // Priority ordering: Live (highest 30d findings first) → Waiting for approval → Draft → Paused → Retired
+        const byActivity = (a: MonitorRow, b: MonitorRow) =>
+          (b.findings_30d - a.findings_30d) || (b.last_check?.at ?? "").localeCompare(a.last_check?.at ?? "") || a.name.localeCompare(b.name);
+        const byRecent = (a: MonitorRow, b: MonitorRow) => b.updated_at.localeCompare(a.updated_at) || a.name.localeCompare(b.name);
+        const stateOf = (m: MonitorRow): MonitorStatus => (m.status === "live" ? "live" : waitsApproval(m) ? "submitted" : isDraft(m) ? "draft" : m.status);
+        const rawFiltered = xs.filter(m => pick(m) && (show === "retired" || m.status !== "retired") && matchRow(m));
+        const ALL_GROUPS: { key: MonitorStatus; label: string; rows: MonitorRow[] }[] = [
+          { key: "live", label: "Live · Active Watchers", rows: rawFiltered.filter(m => stateOf(m) === "live").sort(byActivity) },
+          { key: "submitted", label: "Waiting for approval", rows: rawFiltered.filter(m => stateOf(m) === "submitted").sort(byRecent) },
+          { key: "draft", label: "Drafts", rows: rawFiltered.filter(m => stateOf(m) === "draft").sort(byRecent) },
+          { key: "paused", label: "Paused", rows: rawFiltered.filter(m => stateOf(m) === "paused").sort(byRecent) },
+          { key: "retired", label: "Retired", rows: rawFiltered.filter(m => stateOf(m) === "retired").sort(byRecent) },
+        ];
+        const GROUPS_ORDER = ALL_GROUPS.filter(g => g.rows.length > 0);
+        const filteredAll = GROUPS_ORDER.flatMap(g => g.rows);
         const activeRow = filteredAll.find(m => m.monitor_id === selId) ?? filteredAll[0] ?? null;
+        const focusedGroup = hoveredGroup ?? scrollGroup;
+        const staging = GROUPS_ORDER.length > 1 && focusedGroup !== null;
+        const onRowEnter = (id: string) => {
+          window.clearTimeout(hoverTimer.current);
+          hoverTimer.current = window.setTimeout(() => setSelId(id), 90);
+        };
+        const onListScroll = (e: React.UIEvent<HTMLDivElement>) => {
+          const el = e.currentTarget;
+          const top = el.getBoundingClientRect().top + 36;
+          let active: string | null = GROUPS_ORDER[0]?.key ?? null;
+          el.querySelectorAll<HTMLElement>("[data-grp]").forEach(sec => {
+            if (sec.getBoundingClientRect().top <= top) active = sec.dataset.grp ?? active;
+          });
+          if (el.scrollTop > 0 && el.scrollHeight - el.scrollTop - el.clientHeight < 6) {
+            active = GROUPS_ORDER[GROUPS_ORDER.length - 1]?.key ?? active;
+          }
+          setScrollGroup(active);
+          window.clearTimeout(scrollTimer.current);
+          scrollTimer.current = window.setTimeout(() => setScrollGroup(null), 650);
+        };
         return <>
           <div className="eos-filterbar">
             <div className="eos-search">
@@ -285,23 +324,37 @@ export function MonitorsPage() {
           </div>
           {filteredAll.length === 0 ? <p className="mon-sub2">No monitors match this filter.</p> : (
             <div className="eos-split">
-              <div className="eos-list">
-                {filteredAll.map(m => (
-                  <button key={m.monitor_id} type="button" className="eos-row" data-selected={activeRow?.monitor_id === m.monitor_id}
-                    onClick={() => setSelId(m.monitor_id)}>
-                    <div className="row" style={{ gap: 8 }}>
-                      <strong style={{ color: "var(--ink)", fontSize: "var(--fs-md)" }}>{m.name}</strong>
-                      <span style={{ marginLeft: "auto" }}><StatusBadge status={m.status} /></span>
+              <div className="eos-list" data-staging={staging ? "true" : "false"}
+                onMouseLeave={() => { window.clearTimeout(hoverTimer.current); setHoveredGroup(null); }}
+                onScroll={onListScroll}>
+                {GROUPS_ORDER.map(g => (
+                  <section key={g.key} className="eos-grp" data-grp={g.key}
+                    data-focused={!staging || focusedGroup === g.key ? "true" : "false"}
+                    onMouseEnter={() => setHoveredGroup(g.key)}>
+                    <div className="eos-grp-hd">
+                      <span className={`eos-grp-dot ${g.key}`} aria-hidden="true" />
+                      <span>{g.label}</span>
+                      <span className="eos-grp-cnt">{g.rows.length}</span>
                     </div>
-                    <span className="small muted">{m.owner} · {everyText(m.check_frequency)} · <b>{m.findings_30d}</b> in 30d</span>
-                    <span className="small muted">{lastWords(m, mine(runs[m.monitor_id], m), mine(found[m.monitor_id], m))}</span>
-                  </button>
+                    {g.rows.map(m => (
+                      <button key={m.monitor_id} type="button" className="eos-row" data-selected={activeRow?.monitor_id === m.monitor_id}
+                        onClick={() => { window.clearTimeout(hoverTimer.current); setSelId(m.monitor_id); }}
+                        onMouseEnter={() => onRowEnter(m.monitor_id)}>
+                        <div className="row" style={{ gap: 8 }}>
+                          <strong style={{ color: "var(--ink)", fontSize: "var(--fs-md)" }}>{m.name}</strong>
+                          <span style={{ marginLeft: "auto" }}><StatusBadge status={m.status} /></span>
+                        </div>
+                        <span className="small muted">{m.owner} · {everyText(m.check_frequency)} · <b>{m.findings_30d}</b> in 30d</span>
+                        <span className="small muted">{lastWords(m, mine(runs[m.monitor_id], m), mine(found[m.monitor_id], m))}</span>
+                      </button>
+                    ))}
+                  </section>
                 ))}
               </div>
               {activeRow && <MonitorInspector row={activeRow} findings={mine(found[activeRow.monitor_id], activeRow)} onChange={load} />}
             </div>
           )}
-          <div style={{ display: "none" }}>{next}{common.every}{line.name}</div>
+          <div style={{ display: "none" }}>{next}{common.every}{line.name}{yours.length}{paused.length}{retired.length}</div>
         </>;
       })()}
       <p className="mon-foot">Monitors watch the news. Price and rate moves are watched by <Link to="/series">market series</Link>, without a monitor.</p>

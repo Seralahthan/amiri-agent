@@ -362,21 +362,79 @@ input[type="range"] { accent-color: var(--accent-strong); }
   font-size: var(--fs-xs); font-weight: 500; cursor: pointer; vertical-align: middle;
 }
 
-/* Master-Detail Split Layout */
+/* Master-Detail Split Layout — Bounded Independent Pane Scrolling (Zero Outer Page Scroll) */
 .eos-split {
   display: grid; grid-template-columns: minmax(300px, 39%) minmax(0, 1fr);
-  border-top: 1px solid var(--hairline); min-height: 540px;
+  border-top: 1px solid var(--hairline);
+  height: calc(100dvh - 355px); min-height: 380px; max-height: 760px;
+  overflow: hidden;
 }
-.eos-list { border-right: 1px solid var(--hairline); display: flex; flex-direction: column; }
-.eos-insp { background: var(--pane); padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.eos-list {
+  border-right: 1px solid var(--hairline);
+  display: flex; flex-direction: column;
+  height: 100%; overflow-y: auto; overscroll-behavior: contain;
+  scroll-behavior: smooth; padding-bottom: 24px;
+}
+.eos-list::-webkit-scrollbar, .eos-insp::-webkit-scrollbar { width: 6px; }
+.eos-list::-webkit-scrollbar-thumb, .eos-insp::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 3px; }
+.eos-list::-webkit-scrollbar-track, .eos-insp::-webkit-scrollbar-track { background: var(--hairline); border-radius: 3px; }
+@supports not selector(::-webkit-scrollbar) {
+  .eos-list, .eos-insp { scrollbar-width: thin; scrollbar-color: var(--line-strong) var(--hairline); }
+}
+.eos-insp {
+  background: var(--pane); padding: 20px 24px;
+  display: flex; flex-direction: column; gap: 16px; min-width: 0;
+  height: 100%; overflow-y: auto; overscroll-behavior: contain;
+}
 .eos-row {
   padding: 12px 14px; border-bottom: 1px solid var(--hairline);
   cursor: pointer; display: flex; flex-direction: column; gap: 4px; position: relative;
   border-left: 0; border-right: 0; border-top: 0; background: transparent; text-align: left; width: 100%;
+  transition: background 160ms var(--ease-out), color 160ms var(--ease-out), opacity 200ms var(--ease-out), transform 140ms var(--ease-spring);
 }
 .eos-row:hover { background: var(--hover-bg); }
 .eos-row[data-selected="true"] { background: var(--pane); }
-.eos-row[data-selected="true"]::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--accent-strong); }
+.eos-row[data-selected="true"]::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--accent); transition: opacity 180ms var(--ease-out); }
+
+/* Vertical State Groups + Rule 3.3 Staging the Focus (Hover & Scroll Depth-of-Field) */
+.eos-grp {
+  display: flex; flex-direction: column;
+  transition: opacity 220ms var(--ease-out), filter 220ms var(--ease-out), transform 220ms var(--ease-out);
+  will-change: opacity, filter;
+}
+.eos-grp-hd {
+  position: sticky; top: 0; z-index: 2;
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 14px; background: var(--paper);
+  border-bottom: 1px solid var(--hairline);
+  font-size: 11px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ink-3);
+  transition: color 180ms var(--ease-out), background 180ms var(--ease-out);
+}
+.eos-grp + .eos-grp .eos-grp-hd { border-top: 1px solid var(--hairline-2); }
+.eos-grp-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--ink-3); }
+.eos-grp-dot.live { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.eos-grp-dot.submitted { background: var(--info); box-shadow: 0 0 0 3px var(--info-soft); }
+.eos-grp-dot.draft { background: var(--ink-3); opacity: 0.6; }
+.eos-grp-dot.paused { background: var(--high); box-shadow: 0 0 0 3px var(--high-soft); }
+.eos-grp-cnt {
+  margin-left: auto; font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  padding: 1px 7px; border-radius: var(--r-pill); background: var(--sunken); color: var(--ink-2);
+}
+/* Staging the Focus: when a vertical group is focused (hover or scroll), non-focused groups gently blur & recede */
+.eos-list[data-staging="true"] .eos-grp[data-focused="false"] {
+  opacity: 0.56;
+  filter: blur(1.4px);
+}
+.eos-list[data-staging="true"] .eos-grp[data-focused="true"] {
+  opacity: 1;
+  filter: blur(0);
+}
+.eos-list[data-staging="true"] .eos-grp[data-focused="true"] .eos-grp-hd {
+  color: var(--accent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .eos-list[data-staging="true"] .eos-grp[data-focused="false"] { filter: none; opacity: 0.72; }
+}
 
 /* Clean Hairline Fold (Rule 2.5 ease-out) */
 details.eos-fold { border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); }
@@ -404,7 +462,7 @@ details.eos-fold[open] > summary::before { transform: rotate(90deg); }
 .eos-ack-win path { stroke-dasharray: 24; stroke-dashoffset: 24; animation: eos-draw 210ms 200ms var(--ease-out) forwards; }
 @keyframes eos-draw { to { stroke-dashoffset: 0; } }
 
-/* Underline Workspace Tabs (Zero vertical scrollbar + Rulebook smooth transitions) */
+/* Underline Workspace Tabs (Respective Icons + Emerald Highlight + Staging the Focus) */
 .eos-utabs-bar {
   display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
   border-bottom: 1px solid var(--hairline); padding: 0; margin-bottom: 4px;
@@ -415,14 +473,23 @@ details.eos-fold[open] > summary::before { transform: rotate(90deg); }
 }
 .eos-utabs::-webkit-scrollbar { display: none; }
 .eos-utab {
-  display: inline-flex; align-items: center; gap: 6px; padding: 10px 14px; min-height: 42px;
+  display: inline-flex; align-items: center; gap: 7px; padding: 10px 14px; min-height: 42px;
   font-size: var(--fs-sm); font-weight: 500; color: var(--ink-3); text-decoration: none;
-  box-shadow: inset 0 -2px 0 transparent; white-space: nowrap;
-  transition: color 160ms var(--ease-out), box-shadow 200ms var(--ease-out), transform 130ms var(--ease-spring);
+  box-shadow: inset 0 -2px 0 transparent; white-space: nowrap; border-radius: var(--r-control) var(--r-control) 0 0;
+  transition: color 180ms var(--ease-out), background 180ms var(--ease-out), box-shadow 220ms var(--ease-out), opacity 180ms var(--ease-out), transform 140ms var(--ease-spring);
 }
-.eos-utab:hover { color: var(--ink); text-decoration: none; }
-.eos-utab:active { transform: scale(0.97); }
-.eos-utab.active { color: var(--ink); font-weight: 600; box-shadow: inset 0 -2px 0 var(--accent-strong); }
+.eos-utab svg { width: 15px; height: 15px; flex: none; stroke-width: 1.8; transition: stroke-width 180ms var(--ease-out), transform 180ms var(--ease-out), color 180ms var(--ease-out); }
+/* Staging the Focus on tabs: hovering one tab dims siblings so the focal tab stands out cleanly */
+.eos-utabs:hover .eos-utab:not(:hover):not(.active) { opacity: 0.48; }
+.eos-utab:hover { color: var(--accent); background: var(--accent-soft); text-decoration: none; }
+.eos-utab:hover svg { transform: scale(1.06); }
+.eos-utab:active { transform: scale(0.96); }
+.eos-utab.active {
+  color: var(--accent); font-weight: 600;
+  background: color-mix(in oklch, var(--accent-soft) 55%, transparent);
+  box-shadow: inset 0 -2.5px 0 var(--accent);
+}
+.eos-utab.active svg { stroke-width: 2.25; color: var(--accent); }
 
 /* Smooth section & inspector transitions (UI-UX-Pro-Skills Rules 2.5, 3.6, 3.9 <300ms) */
 @keyframes eos-enter { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
@@ -515,8 +582,9 @@ details.eos-fold[open] > summary::before { transform: rotate(90deg); }
   .eos-cmd-btn span:not(.eos-kbd) { display: none; }
   .eos-ledger { grid-template-columns: repeat(2, 1fr); }
   .eos-ledger-cell { padding: 12px 8px !important; border-right: 0; border-bottom: 1px solid var(--hairline); }
-  .eos-split, .eos-spec2 { grid-template-columns: 1fr; }
-  .eos-list { border-right: 0; border-bottom: 1px solid var(--hairline); }
+  .eos-split, .eos-spec2 { grid-template-columns: 1fr; height: auto; max-height: none; overflow: visible; }
+  .eos-list { border-right: 0; border-bottom: 1px solid var(--hairline); max-height: 55vh; }
+  .eos-insp { height: auto; overflow: visible; }
   .eos-mobnav {
     display: grid; grid-template-columns: repeat(5, 1fr);
     position: fixed; bottom: 0; left: 0; right: 0; z-index: 40;
