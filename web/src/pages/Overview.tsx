@@ -7,7 +7,7 @@ import { Icon } from "../components/Icon";
 import { Fold, ToneGlyph, TonePill } from "../components/blocks";
 import { Banner, DEMOS, errText, isDown, LoadError, PageHead, PageSkeleton, useNow, useRole } from "../components/ui";
 import { ago, pct, plural, price, TIME_ZONE, ZONE_LABEL } from "../format";
-import { eventTitle } from "../plain";
+import { eventTitle, undated } from "../plain";
 import { ProfileMap } from "./institution/ProfileMap";
 import { TAB_OF_SECTION } from "./institution/InstitutionPage";
 import { LiveWire } from "../components/TelemetryStrip";
@@ -164,18 +164,47 @@ export function OverviewPage() {
       {/* Live Signal Wire */}
       <LiveWire ov={o} now={now} down={err != null && isDown(err)} />
 
-      {/* Clean 2-Column Editorial Grid: Left = Focal Corridor Map, Right = Open Events + Market Prices + Governance */}
+      {/* Clean 2-Column Editorial Grid: Left = Focal Corridor Map + Recent Findings, Right = Open Events + Market Prices + Governance */}
       <div className="eos-cmd-grid">
-        <div className="eos-focal">
-          <div className="row" style={{ justifyContent: "space-between", marginBottom: 10 }}>
-            <span style={{ fontSize: 13.5, fontWeight: 600, color: "var(--ink)" }}>Corridor &amp; Exposure Map</span>
-            {bad.length > 0 && <span className="badge b-down"><ToneGlyph tone="bad" />{bad.length} adverse</span>}
+        <div className="col" style={{ gap: 16 }}>
+          <div className="eos-focal">
+            <div className="row" style={{ justifyContent: "space-between", marginBottom: 10 }}>
+              <span style={{ fontSize: 13.5, fontWeight: 600, color: "var(--ink)" }}>Corridor &amp; Exposure Map</span>
+              {bad.length > 0 && <span className="badge b-down"><ToneGlyph tone="bad" />{bad.length} adverse</span>}
+            </div>
+            {profile ? (
+              <ProfileMap profile={profile} height={290} compact layers={["footprint", "flows", "risks"]}
+                events={o.events.map(e => ({ event_id: e.event_id, title: eventTitle(e), tone: e.tone, places: e.places }))}
+                extraPlaces={o.map.places} onEvent={id => nav(`/events/${id}`)} />
+            ) : <div className="small muted" style={{ padding: "40px 0", textAlign: "center" }}>Loading footprint map…</div>}
           </div>
-          {profile ? (
-            <ProfileMap profile={profile} height={290} compact layers={["footprint", "flows", "risks"]}
-              events={o.events.map(e => ({ event_id: e.event_id, title: eventTitle(e), tone: e.tone, places: e.places }))}
-              extraPlaces={o.map.places} onEvent={id => nav(`/events/${id}`)} />
-          ) : <div className="small muted" style={{ padding: "40px 0", textAlign: "center" }}>Loading footprint map…</div>}
+
+          <div>
+            <div className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
+              <h2>Recent Findings</h2>
+              <Link to="/findings" className="small" style={{ fontWeight: 600 }}>All findings →</Link>
+            </div>
+            {(o.findings ?? []).length > 0 ? (
+              <table className="eos-tbl">
+                <thead><tr><th>Source</th><th>Signal</th><th className="r">Captured</th></tr></thead>
+                <tbody>
+                  {(o.findings ?? []).slice(0, 4).map(f => {
+                    const srcLbl = f.source === "radar" ? "RADAR" : f.source === "monitor" ? "MONITOR" : f.source === "timeseries" ? "PRICE" : "SIGNAL";
+                    const srcCls = f.source === "radar" ? "b-info" : f.source === "monitor" ? "b-warn" : "b-ok";
+                    return (
+                      <tr key={f.finding_id} className="click" onClick={() => nav(f.event_id ? `/events/${f.event_id}` : `/findings#f-${f.finding_id}`)}>
+                        <td style={{ whiteSpace: "nowrap" }}><span className={`badge ${srcCls}`}>{srcLbl}</span></td>
+                        <td><strong style={{ color: "var(--ink)", fontWeight: 500 }}>{undated(f.title)}</strong></td>
+                        <td className="r small muted" style={{ whiteSpace: "nowrap" }}>{ago(f.created_at, now)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            ) : (
+              <div className="small muted" style={{ padding: "12px 0", borderTop: "1px solid var(--hairline)" }}>Quiet in the last 24h — new findings from Radar, Monitors, and Market Series will appear here.</div>
+            )}
+          </div>
         </div>
 
         <div className="col" style={{ gap: 16 }}>

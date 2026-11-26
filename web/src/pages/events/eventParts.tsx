@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import type { AlertItem } from "../../api/alerts";
 import type { EventDetail, Hypothesis } from "../../api/investigation";
-import { FactList, Fold, Places, TechnicalDetails } from "../../components/blocks";
+import { FactList, Fold, Places, TechnicalDetails, TonePill } from "../../components/blocks";
 import { CheckPill } from "../../components/checks";
 import { Icon } from "../../components/Icon";
 import { Markdown } from "../../components/markdown";
@@ -134,36 +134,79 @@ export function Progress({ d }: { d: D }) {
   );
 }
 
-/** Unified 4-Stage Causal Chain: replaces duplicate KPI ledger + stepper with one scannable flow. */
+/** Visual 3-Step Causal Flow: WHAT HAPPENED → THE EVENT → YOUR PRODUCTS & ALERTS. */
 export function CausalChain({ d }: { d: D }) {
-  const { e, lead } = d, n = e.hypotheses.length;
+  const { e, lead, head } = d, n = e.hypotheses.length;
   const si = lead ? sourceInfo(lead.source) : null;
-  const toneColor = d.tone === "bad" ? "var(--critical-ink)" : d.tone === "good" ? "var(--accent)" : d.tone === "mixed" ? "var(--high-ink)" : "var(--ink)";
+  const ref = lead?.source_ref ?? {};
+  const triggerText = head?.title ?? lead?.title ?? "External signal detected";
+  const shownProducts = d.products.slice(0, 2);
+  const moreProducts = d.products.length - shownProducts.length;
+  const checkNote = !d.validation ? "Checks off" : d.checked ? `${d.checked}/${n} checked` : "Waiting for data";
+
   return (
     <ol className="evd-chain" aria-label="Event causal chain">
       <li className="evd-chain-step">
-        <span className="evd-chain-k">01 · Signal</span>
-        <strong className="evd-chain-v">{si?.label ?? "External signal"}</strong>
-        <span className="evd-chain-m">{onDay(e.anchor.slice(0, 10))}{d.devs.length > 0 ? ` · +${d.devs.length} joined` : ""}</span>
+        <div className="evd-chain-top">
+          <span className="evd-chain-k">01 · What Happened</span>
+          {si && <span className={`ev-lab src-${lead!.source}`}><Icon name={si.icon} />{si.label}</span>}
+        </div>
+        <strong className="evd-chain-v evd-chain-clamp" title={triggerText}>{triggerText}</strong>
+        <div className="evd-chain-foot">
+          <span className="evd-chain-m">{onDay(e.anchor.slice(0, 10))}{d.devs.length > 0 ? ` · +${d.devs.length} joined` : ""}</span>
+          {(ref.monitor_id || ref.series_id) ? (
+            <Link className="evd-chain-link" to={ref.monitor_id ? `/monitors/${ref.monitor_id}` : `/series/${ref.series_id}`}>
+              {ref.monitor_id ? "Open monitor →" : "Open price series →"}
+            </Link>
+          ) : head?.url ? (
+            <a className="evd-chain-link" href={head.url} target="_blank" rel="noreferrer">Source ↗</a>
+          ) : null}
+        </div>
       </li>
+
+      <li className="evd-chain-arrow" aria-hidden="true">→</li>
+
       <li className="evd-chain-step">
-        <span className="evd-chain-k">02 · Possible Impacts</span>
-        <strong className="evd-chain-v" style={{ color: toneColor }}>{n ? `${count(n, "impact")} · ${count(d.products.length, "product")}` : "None traced"}</strong>
-        <span className="evd-chain-m">{forYou(d) ? forYou(d).replace(/^./, c => c.toUpperCase()) : "No product reach"}</span>
+        <div className="evd-chain-top">
+          <span className="evd-chain-k">02 · The Event</span>
+          {n > 0 && !(d.alertsFailed && d.tone === "neutral") && <TonePill tone={d.tone} />}
+        </div>
+        <strong className="evd-chain-v">{d.title}</strong>
+        <div className="evd-chain-foot">
+          <span className="evd-chain-m">
+            {e.places.length > 0 ? <Places codes={e.places} max={2} /> : e.themes.map(themeLabel).join(" · ") || "Active event"}
+            {e.status === "open" ? ` · Open until ${onDay(e.open_until.slice(0, 10))}` : " · Closed"}
+          </span>
+        </div>
       </li>
+
+      <li className="evd-chain-arrow" aria-hidden="true">→</li>
+
       <li className={`evd-chain-step${d.toReview > 0 ? " is-wait" : ""}`}>
-        <span className="evd-chain-k">03 · Teams Alerted</span>
+        <div className="evd-chain-top">
+          <span className="evd-chain-k">03 · Your Products</span>
+          {d.toReview > 0 ? (
+            <span className="evd-team-st wait">{count(d.toReview, "alert")} waiting</span>
+          ) : d.teams.length > 0 ? (
+            <span className="evd-team-st">All taken on</span>
+          ) : null}
+        </div>
         <strong className="evd-chain-v">
-          {d.alertsFailed ? "Unavailable" : d.teams.length ? <Link to={`/alerts?event=${encodeURIComponent(e.event_id)}`}>{count(d.teams.length, "team")}</Link> : "No alerts"}
+          {n > 0 ? (
+            <>
+              {shownProducts.join(", ")}
+              {moreProducts > 0 && <span className="muted" style={{ fontWeight: 500 }}> +{moreProducts} more</span>}
+            </>
+          ) : "No product reach"}
         </strong>
-        <span className="evd-chain-m">{d.toReview ? `${d.toReview} waiting for review` : d.teams.length ? "All taken on" : "None sent"}</span>
-      </li>
-      <li className="evd-chain-step">
-        <span className="evd-chain-k">04 · Your Bank Data</span>
-        <strong className="evd-chain-v" style={{ color: !d.validation ? "var(--ink-3)" : d.checked ? "var(--accent)" : "var(--ink)" }}>
-          {!d.validation ? "Checks off" : d.checked ? `${d.checked} of ${n} checked` : "Waiting for data"}
-        </strong>
-        <span className="evd-chain-m">{!d.validation ? "AI expectations only" : d.next ? `Next check ${onDay(d.next)}` : "Verified by code"}</span>
+        <div className="evd-chain-foot">
+          <span className="evd-chain-m">
+            {d.alertsFailed ? "Alerts unavailable" : d.teams.length ? `${count(d.teams.length, "team")} alerted` : "No alerts"} · {checkNote}
+          </span>
+          {!d.alertsFailed && d.teams.length > 0 && (
+            <Link className="evd-chain-link" to={`/alerts?event=${encodeURIComponent(e.event_id)}`}>View alerts →</Link>
+          )}
+        </div>
       </li>
     </ol>
   );
