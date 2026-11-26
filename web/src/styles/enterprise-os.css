@@ -1028,11 +1028,20 @@ details.eos-fold[open] > summary::before {
 /* Responsive Mobile Shell */
 @media (max-width: 900px) {
   .app { grid-template-columns: 1fr; grid-template-rows: 52px minmax(0, 1fr); }
-  .appbar { grid-column: 1; grid-row: 1; padding: 0 12px; }
-  .main { grid-column: 1; grid-row: 2; }
+  .appbar { grid-column: 1; grid-row: 1; padding: 0 12px; gap: 8px; }
+  .main { grid-column: 1; grid-row: 2; background: var(--paper); overflow-x: hidden; }
   .eos-mob-brand { display: inline-flex; }
   .eos-sched { display: none; }
-  .side { grid-column: 1; grid-row: 1 / -1; height: 100dvh; }
+  /* Keep sidebar completely hidden when closed on mobile so it never bleeds behind content */
+  .side { display: none !important; }
+  .side[data-open="true"] {
+    display: flex !important;
+    position: fixed; top: 52px; left: 0; bottom: 0;
+    height: calc(100dvh - 52px); width: min(280px, 84vw);
+    z-index: 60; box-shadow: 0 16px 40px rgb(16 22 19 / 0.22);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .appbar .menubtn { display: inline-flex; }
 }
 
 /* Clean Enterprise Page Container, Header, Table & Focal Surface */
@@ -1100,16 +1109,45 @@ details.eos-fold[open] > summary::before {
 .eos-tbl .r { text-align: right; }
 @media (max-width: 960px) { .eos-cmd-grid { grid-template-columns: 1fr; } }
 
-/* Mobile Bottom Nav (Rule 1.9 & 4.2: 44px touch targets) */
+/* Mobile Bottom Nav & Responsive Polish (Rule 1.9 & 4.2: 44px touch targets, 0px overflow) */
 .eos-mobnav { display: none; }
 @media (max-width: 900px) {
+  .eos-pad, .page { padding: 14px 14px 92px !important; gap: 14px; }
+  .eos-hd { gap: 10px; }
+  .eos-hd .row { flex-wrap: wrap; }
+  .eos-hd h1, .page .ph-title h1, .page > .head h1 { font-size: 22px; }
   .eos-cmd-btn { width: auto; padding: 0 10px; }
   .eos-cmd-btn span:not(.eos-kbd) { display: none; }
-  .eos-ledger { grid-template-columns: repeat(2, 1fr); }
-  .eos-ledger-cell { padding: 12px 8px !important; border-right: 0; border-bottom: 1px solid var(--hairline); }
-  .eos-split, .eos-spec2 { grid-template-columns: 1fr; height: auto; max-height: none; overflow: visible; }
-  .eos-list { border-right: 0; border-bottom: 1px solid var(--hairline); max-height: 55vh; }
-  .eos-insp { height: auto; overflow: visible; }
+
+  /* Workspace underline tabs fit cleanly on 390px without clipping */
+  .eos-utabs-bar { gap: 8px; }
+  .eos-utabs { max-width: 100%; gap: 2px; }
+  .eos-utab { padding: 8px 10px; font-size: 12.5px; gap: 5px; min-height: 38px; }
+  .eos-utab svg { width: 14px; height: 14px; }
+
+  /* Compact mobile filter bar + horizontally swipeable FlowFilter (.ff) pill strip */
+  .eos-filterbar { gap: 8px; }
+  .eos-search { flex: 1 1 100%; min-width: 0; }
+  .ff {
+    flex-wrap: nowrap !important; overflow-x: auto; max-width: 100%;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch;
+    justify-content: flex-start;
+  }
+  .ff::-webkit-scrollbar { display: none; }
+  .ff > * { flex: none; white-space: nowrap; }
+
+  /* Ledger, split panes & inspector */
+  .eos-ledger { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .eos-ledger-cell { padding: 11px 10px !important; border-right: 0; border-bottom: 1px solid var(--hairline); }
+  .eos-split, .eos-spec2 { grid-template-columns: minmax(0, 1fr); height: auto; max-height: none; overflow: visible; }
+  .eos-list { border-right: 0; border-bottom: 1px solid var(--hairline); max-height: 48vh; }
+  .eos-insp { height: auto; overflow: visible; padding: 14px !important; }
+  .eos-tbl th, .eos-tbl td { padding: 9px 6px; font-size: 12.5px; }
+
+  /* Institution Setup Agent floating drawer sits cleanly above bottom nav */
+  .withchat.open { padding-bottom: 84px; }
+  .chatside.eos-agent-float { margin: 8px 14px 16px; width: auto; }
+
   .eos-mobnav {
     display: grid; grid-template-columns: repeat(5, 1fr);
     position: fixed; bottom: 0; left: 0; right: 0; z-index: 40;
@@ -1122,5 +1160,14 @@ details.eos-fold[open] > summary::before {
   }
   .eos-mobnav a[aria-current="page"] { color: var(--accent-ink); font-weight: 600; }
   .eos-mobnav svg { width: 18px; height: 18px; }
-  .page { padding-bottom: 84px !important; }
+}
+@media (max-width: 640px) {
+  /* Prevent Institution & Event Detail collapsible section header buttons from overlapping headings */
+  .eos-pad .card.eos-sec-card > .hd, .page .card.eos-sec-card > .hd {
+    flex-wrap: wrap; gap: 8px 10px; padding: 10px 12px;
+  }
+  .eos-pad .card.eos-sec-card > .hd > .spacer, .page .card.eos-sec-card > .hd > .spacer { display: none; }
+  .eos-sec-toggle { flex: 1 1 100%; }
+  .eos-pad .card.eos-sec-card > .list .pf-row, .page .card.eos-sec-card > .list .pf-row { padding: 12px; }
+  .eos-ms-lrow { grid-template-columns: 42px 54px minmax(0, 1fr) 38px; gap: 6px; font-size: 12px; }
 }

@@ -76,9 +76,11 @@
 
 @media (max-width:1000px) {
   .rd { height:auto; min-height:100%; }  /* stacked: the page grows and scrolls */
-  .rd-split { flex:none; grid-template-columns:1fr; gap:32px; }
-  .rd-index > ol { height:70vh; }
-  .rd-read { overflow:visible; }
+  .rd-split { flex:none; grid-template-columns:minmax(0, 1fr); gap:16px; min-height:0; }
+  .rd-index { border-right:0; border-bottom:1px solid var(--hairline); min-width:0; max-width:100%; }
+  .rd-index > ol { height:auto; max-height:52vh; }
+  .rd-read { overflow:visible; padding:16px; min-width:0; max-width:100%; overflow-wrap:anywhere; }
+  .rd-link { font-size:13px; flex-wrap:wrap; max-width:100%; }
 }
 @media (max-width:600px) { .rd .ph-title h1 { font-size:34px; } }
 /* second layer of the chosen story: what happened, places, sources; the headlines sit one layer deeper */
