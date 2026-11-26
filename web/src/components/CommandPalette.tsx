@@ -34,8 +34,18 @@ export function CommandPalette({ open, onClose, ov, projector, onToggleProjector
 }) {
   const nav = useNavigate();
   const [q, setQ] = useState("");
+  const [typing, setTyping] = useState(false);
+  const typingTimer = useRef<number>(0);
   const [hi, setHi] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    window.clearTimeout(typingTimer.current);
+    if (!q.trim()) { setTyping(false); return; }
+    setTyping(true);
+    typingTimer.current = window.setTimeout(() => setTyping(false), 320);
+    return () => window.clearTimeout(typingTimer.current);
+  }, [q]);
 
   useEffect(() => {
     if (!open) return;
@@ -117,9 +127,12 @@ export function CommandPalette({ open, onClose, ov, projector, onToggleProjector
     <div className="eos-cmd-overlay" role="dialog" aria-modal="true" aria-label="Search AMIRI Agent"
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="eos-cmd-modal">
-        <div className="eos-cmd-in">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-            <circle cx="11" cy="11" r="7" /><path d="m21 21-4.35-4.35" />
+        <div className={`eos-cmd-in${typing ? " is-searching" : ""}${q.trim() ? " has-val" : ""}`}>
+          <svg className="eos-s-mag" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+            <circle cx="7" cy="7" r="4.8" /><path d="m10.7 10.7 3.2 3.2" />
+          </svg>
+          <svg className="eos-s-spin" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+            <path d="M8 2a6 6 0 1 1-4.24 1.76" />
           </svg>
           <input ref={inputRef} value={q} onChange={e => setQ(e.target.value)}
             placeholder="Jump to event, market series, Radar story, finding, or page…"
@@ -129,7 +142,10 @@ export function CommandPalette({ open, onClose, ov, projector, onToggleProjector
               else if (e.key === "ArrowUp") { e.preventDefault(); setHi(i => Math.max(0, i - 1)); }
               else if (e.key === "Enter" && filtered[hi]) { e.preventDefault(); pick(filtered[hi]); }
             }} />
+          {q.trim() && !typing && <span className="eos-s-cnt">{filtered.length} found</span>}
+          {q.trim() && <button type="button" className="eos-s-clr" aria-label="Clear search" onClick={() => { setQ(""); inputRef.current?.focus(); }}>×</button>}
           <span className="eos-kbd">ESC</span>
+          <span className="eos-s-beam" aria-hidden="true" />
         </div>
         <div className="eos-cmd-list">
           {filtered.length === 0

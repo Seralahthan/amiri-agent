@@ -1109,6 +1109,47 @@ details.eos-fold[open] > summary::before {
 .eos-tbl .r { text-align: right; }
 @media (max-width: 960px) { .eos-cmd-grid { grid-template-columns: 1fr; } }
 
+/* Variation 1 Live Search Animation: Emerald Bottom Scan Beam + Morphing Spinner + Clear Button */
+.eos-search, .eos-cmd-in { position: relative; overflow: hidden; }
+.eos-search .eos-s-mag, .eos-cmd-in .eos-s-mag {
+  width: 15px; height: 15px; flex: none; color: var(--ink-3);
+  transition: color 160ms var(--ease-out);
+}
+.eos-search:focus-within .eos-s-mag, .eos-search.has-val .eos-s-mag,
+.eos-cmd-in:focus-within .eos-s-mag, .eos-cmd-in.has-val .eos-s-mag { color: var(--accent); }
+.eos-search .eos-s-spin, .eos-cmd-in .eos-s-spin {
+  display: none; width: 15px; height: 15px; flex: none; color: var(--accent);
+  animation: eos-s-rotate 0.65s linear infinite;
+}
+.eos-search.is-searching .eos-s-mag, .eos-cmd-in.is-searching .eos-s-mag { display: none; }
+.eos-search.is-searching .eos-s-spin, .eos-cmd-in.is-searching .eos-s-spin { display: block; }
+@keyframes eos-s-rotate { to { transform: rotate(360deg); } }
+.eos-s-beam {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
+  pointer-events: none; opacity: 0; transition: opacity 160ms var(--ease-out);
+}
+.eos-search.is-searching .eos-s-beam, .eos-cmd-in.is-searching .eos-s-beam { opacity: 1; }
+.eos-s-beam::after {
+  content: ""; position: absolute; top: 0; left: -35%; width: 42%; height: 100%;
+  background: linear-gradient(90deg, transparent, var(--accent), oklch(72% 0.16 152), transparent);
+  animation: eos-s-sweep 0.85s var(--ease-out) infinite;
+}
+@keyframes eos-s-sweep { to { left: 110%; } }
+.eos-s-cnt {
+  font-size: 11px; font-weight: 600; color: var(--ink-3);
+  white-space: nowrap; font-variant-numeric: tabular-nums; flex: none;
+}
+.eos-s-clr {
+  width: 20px; height: 20px; border-radius: 999px; border: 0; flex: none;
+  background: var(--sunken); color: var(--ink-2); font-size: 13px; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+  transition: background 140ms var(--ease-out), color 140ms var(--ease-out);
+}
+.eos-s-clr:hover { background: var(--hairline-2); color: var(--ink); }
+@media (prefers-reduced-motion: reduce) {
+  .eos-search .eos-s-spin, .eos-cmd-in .eos-s-spin, .eos-s-beam::after { animation: none; }
+}
+
 /* Mobile Bottom Nav & Responsive Polish (Rule 1.9 & 4.2: 44px touch targets, 0px overflow) */
 .eos-mobnav { display: none; }
 @media (max-width: 900px) {

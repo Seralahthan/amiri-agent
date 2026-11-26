@@ -7,6 +7,7 @@ import { ApiError } from "../../api/client";
 import { alertsApi } from "../../api/alerts";
 import { investigationApi, type EventDetail, type EventRow, type InvestigationStatus, type Run, type Theme } from "../../api/investigation";
 import { DeadlineBadge, Places, ToneGlyph, TonePill } from "../../components/blocks";
+import { SearchInput } from "../../components/SearchInput";
 import { SelectMenu } from "../../components/SelectMenu";
 import { CheckBrief } from "../../components/checks";
 import { FlowFilter } from "../../components/FlowFilter";
@@ -274,10 +275,7 @@ export function EventsPage() {
         {status.connected && waiting > 0 && <InvestigateNowButton onDone={refresh} small />}
       </div>}
       <div className="eos-filterbar">
-        <div className="eos-search">
-          <Icon name="search" />
-          <input value={query} onChange={e => setQuery(e.target.value)} aria-label="Search events" placeholder="Search events, themes, places…" />
-        </div>
+        <SearchInput value={query} onChange={setQuery} ariaLabel="Search events" placeholder="Search events, themes, places…" count={rows.length} />
         <SelectMenu label="Filter by tone" value={toneFilter} onChange={setToneFilter} options={[
           { value: "", label: "All tones" },
           { value: "bad", label: "Bad", icon: <ToneGlyph tone="bad" colored /> },

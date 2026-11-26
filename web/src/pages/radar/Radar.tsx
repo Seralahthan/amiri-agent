@@ -7,6 +7,7 @@ import { inst } from "../../api/institutions";
 import { gb, radarApi, scheduleText, type RadarStatus, type RadarStory } from "../../api/radar";
 import { ChipFilter } from "../../components/FlowFilter";
 import { Icon } from "../../components/Icon";
+import { SearchInput } from "../../components/SearchInput";
 import { SelectMenu } from "../../components/SelectMenu";
 import { Banner, Empty, ListSkeleton, LoadError, useNow, useRole, useToast } from "../../components/ui";
 import { ago, dateKey, day, dayTime, placeName, placeOrder, plural, when } from "../../format";
@@ -263,10 +264,7 @@ export function RadarPage() {
       </div>}
 
       <div className="eos-filterbar">
-        <div className="eos-search">
-          <Icon name="search" />
-          <input value={query} onChange={e => { refilter(); setQuery(e.target.value); }} aria-label="Search Radar stories" placeholder="Search stories, headlines, or outlets…" />
-        </div>
+        <SearchInput value={query} onChange={v => { refilter(); setQuery(v); }} ariaLabel="Search Radar stories" placeholder="Search stories, headlines, or outlets…" count={all.length} />
         <SelectMenu label="Filter by relevance" value={relFilter} onChange={v => { refilter(); setRelFilter(v); }} options={[
           { value: "", label: "Any relevance" },
           { value: "high", label: "High relevance" },

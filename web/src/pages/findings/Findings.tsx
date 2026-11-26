@@ -8,6 +8,7 @@ import { investigationApi, type EventRow, type FindingRow } from "../../api/inve
 import { FlowFilter } from "../../components/FlowFilter";
 import { Icon } from "../../components/Icon";
 import { TonePill } from "../../components/blocks";
+import { SearchInput } from "../../components/SearchInput";
 import { SelectMenu } from "../../components/SelectMenu";
 import { Banner, Empty, errText, isDown, ListSkeleton, LoadError, useNow, useToast } from "../../components/ui";
 import { ago, dayTime, placeName, until } from "../../format";
@@ -166,10 +167,7 @@ export function FindingsPage() {
           <b>{count(status.findings_waiting, "finding")} waiting</b> to be investigated{nextBatch ? `: the next batch goes ${nextBatch}` : ""}.
         </Banner>)}
       <div className="eos-filterbar" style={{ marginBottom: 0 }}>
-        <div className="eos-search">
-          <Icon name="search" />
-          <input value={query} onChange={e => setQuery(e.target.value)} aria-label="Search findings" placeholder="Search findings or sources…" />
-        </div>
+        <SearchInput value={query} onChange={setQuery} ariaLabel="Search findings" placeholder="Search findings or sources…" count={shown} />
         <SelectMenu label="Filter by source" value={sourceFilter} onChange={setSourceFilter} options={[
           { value: "", label: "All sources" },
           { value: "monitor", label: "Monitor" },

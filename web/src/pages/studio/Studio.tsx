@@ -7,6 +7,7 @@ import { FillFromJson } from "../../components/FillFromJson";
 import { scenariosOf } from "../../components/fillJson";
 import { FlowFilter } from "../../components/FlowFilter";
 import { Icon } from "../../components/Icon";
+import { SearchInput } from "../../components/SearchInput";
 import { SelectMenu } from "../../components/SelectMenu";
 import { TonePill } from "../../components/blocks";
 import { Banner, Empty, InlineSkeleton, LoadError, Modal, PageHead, PageSkeleton, useToast } from "../../components/ui";
@@ -222,10 +223,7 @@ export function StudioPage() {
         {current && <div className="banners"><CurrentBanner sim={current} /></div>}
 
         <div className="eos-filterbar" style={{ marginBottom: 0 }}>
-          <div className="eos-search">
-            <Icon name="search" />
-            <input value={query} onChange={e => setQuery(e.target.value)} aria-label="Search scenarios" placeholder="Search scenarios, templates, or tags…" />
-          </div>
+          <SearchInput value={query} onChange={setQuery} ariaLabel="Search scenarios" placeholder="Search scenarios, templates, or tags…" count={allEntries.length} />
           <SelectMenu label="Filter by type" value={typeFilter} onChange={setTypeFilter} options={[
             { value: "", label: "All types" },
             { value: "recorded", label: "Ready to replay" },

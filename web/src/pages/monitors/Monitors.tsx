@@ -7,6 +7,7 @@ import { EVERY, monitorsApi, type CheckRow, type Draftable, type MonitorFinding,
 import { HowItWorks, StatusPill } from "../../components/blocks";
 import { FlowFilter } from "../../components/FlowFilter";
 import { Icon } from "../../components/Icon";
+import { SearchInput } from "../../components/SearchInput";
 import { SelectMenu } from "../../components/SelectMenu";
 import { Banner, Empty, Modal, useNow, useRole, useToast, InlineSkeleton, LoadError } from "../../components/ui";
 import { ago } from "../../format";
@@ -310,10 +311,7 @@ export function MonitorsPage() {
         };
         return <>
           <div className="eos-filterbar">
-            <div className="eos-search">
-              <Icon name="search" />
-              <input value={query} onChange={e => setQuery(e.target.value)} aria-label="Search monitors" placeholder="Search monitors, owners, or criteria…" />
-            </div>
+            <SearchInput value={query} onChange={setQuery} ariaLabel="Search monitors" placeholder="Search monitors, owners, or criteria…" count={filteredAll.length} />
             {owners.length > 1 && <SelectMenu label="Filter by owner" value={ownerFilter} onChange={setOwnerFilter} options={[
               { value: "", label: `All owners (${owners.length})` },
               ...owners.map(o => ({ value: o, label: o })),

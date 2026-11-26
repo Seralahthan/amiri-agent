@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { seriesApi, type Bar, type Series, type SeriesStatus, type SimulateResult } from "../api/series";
 import { Icon } from "../components/Icon";
+import { SearchInput } from "../components/SearchInput";
 import { SelectMenu } from "../components/SelectMenu";
 import { SurveillanceTabs } from "../components/WorkspaceTabs";
 import { HowItWorks, StatusPill } from "../components/blocks";
@@ -191,10 +192,7 @@ export function SeriesList() {
 
       {items && items.length > 0 && (
         <div className="eos-filterbar" style={{ marginBottom: 0 }}>
-          <div className="eos-search">
-            <Icon name="search" />
-            <input value={query} onChange={e => setQuery(e.target.value)} aria-label="Search market series" placeholder="Search symbol (USD/AED, Gold…)" />
-          </div>
+          <SearchInput value={query} onChange={setQuery} ariaLabel="Search market series" placeholder="Search symbol (USD/AED, Gold…)" count={filtered.length} />
           {types.length > 0 && (
             <SelectMenu label="Filter by asset type" value={typeFilter} onChange={setTypeFilter} options={[
               { value: "", label: "All asset types" },

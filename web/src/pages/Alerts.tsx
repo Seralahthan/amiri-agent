@@ -6,6 +6,7 @@ import { alertsApi, type AlertItem, type AlertSummary } from "../api/alerts";
 import { investigationApi, type EventDetail } from "../api/investigation";
 import { FlowFilter } from "../components/FlowFilter";
 import { Icon } from "../components/Icon";
+import { SearchInput } from "../components/SearchInput";
 import { SelectMenu } from "../components/SelectMenu";
 import { Empty, ListSkeleton, LoadError, useNow, useToast } from "../components/ui";
 import { ago, dayTime } from "../format";
@@ -123,10 +124,7 @@ export function AlertsPage() {
       {err != null && <LoadError error={err} onRetry={load} what="the alerts" />}
 
       <div className="eos-filterbar" style={{ marginBottom: 0 }}>
-        <div className="eos-search">
-          <Icon name="search" />
-          <input value={query} onChange={e => setQuery(e.target.value)} aria-label="Search alerts" placeholder="Search alerts, products, teams, or events…" />
-        </div>
+        <SearchInput value={query} onChange={setQuery} ariaLabel="Search alerts" placeholder="Search alerts, products, teams, or events…" count={queue?.length} />
         <SelectMenu label="Filter by severity" value={levelFilter} onChange={setLevelFilter} options={[
           { value: "", label: "All severities" },
           { value: "adverse", label: "Confirmed" },
