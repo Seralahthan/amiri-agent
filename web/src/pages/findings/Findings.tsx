@@ -83,7 +83,7 @@ export function FindingsPage() {
     const m = new Map<string, F[]>();
     xs.filter(f => f.status === "linked").forEach(f => { const k = f.outcome?.event_id ?? ""; m.set(k, [...(m.get(k) ?? []), f]); });
     return [...m.entries()].sort((a, b) => b[1].length - a[1].length);
-  }, [items]);  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [xs]);
   const aside = xs.filter(f => f.status === "set_aside");
 
   // from the Overview: open on that finding, unfolding its section
