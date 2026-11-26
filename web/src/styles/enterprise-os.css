@@ -348,8 +348,29 @@ body {
 .eos-sched-item b { color: var(--ink); font-weight: 600; }
 .eos-sched-item .mono { color: var(--ink-2); font-size: 11px; }
 .eos-sched-div { width: 1px; height: 12px; background: var(--hairline-2); flex-shrink: 0; }
+
+/* Institution location-based clock in topbar (visible across all viewports) */
+.eos-clock {
+  display: inline-flex; align-items: center; gap: 5px;
+  margin-left: auto; flex-shrink: 0; white-space: nowrap;
+  padding: 4px 10px; border-radius: 7px;
+  background: var(--sunken); border: 1px solid var(--hairline);
+  font-size: 12px; font-weight: 500; color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.eos-clock-dot { color: var(--ink-3); }
+.eos-clock-time { color: var(--ink); font-weight: 600; font-family: var(--font-mono); font-size: 11.5px; }
+.eos-clock-zone { color: var(--ink-3); }
+
 @media (max-width: 1360px) {
   .eos-cmd-btn { width: 205px; }
+}
+@media (max-width: 560px) {
+  .eos-mob-brand b { display: none; }
+  .eos-cmd-btn .eos-kbd { display: none; }
+  .eos-cmd-btn { padding: 0 9px; min-width: 36px; justify-content: center; }
+  .eos-clock { padding: 3px 8px; gap: 4px; font-size: 11px; }
+  .eos-clock-time { font-size: 10.5px; }
 }
 
 .eos-ticker {

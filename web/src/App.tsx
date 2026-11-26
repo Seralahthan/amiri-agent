@@ -3,7 +3,7 @@ import { Link, Navigate, Route, Routes, useLocation, useNavigate } from "react-r
 import { Icon } from "./components/Icon";
 import { Empty, isDown, PageHead, PageSkeleton, useNow, useRole, type Role } from "./components/ui";
 import { api, ME } from "./api/client";
-import { setZone } from "./format";
+import { barClock, setZone } from "./format";
 import { cap } from "./plain";
 import { OVERVIEW_EVENT, overviewApi, type Overview } from "./api/overview";
 import { SystemStatus } from "./components/SystemStatus";
@@ -290,6 +290,22 @@ function Frame({ inst }: { inst: Installation }) {
           <span className="eos-kbd">⌘K</span>
         </button>
         <TelemetryStrip ov={ov} now={now} down={down} />
+        {(() => {
+          const clk = barClock(now);
+          return (
+            <time
+              className="eos-clock"
+              dateTime={now.toISOString()}
+              title={`Institution local time (${inst.time_zone})`}
+              aria-label={`${clk.date}, ${clk.time} ${clk.zone}`}
+            >
+              <span>{clk.date}</span>
+              <span className="eos-clock-dot" aria-hidden="true">·</span>
+              <span className="eos-clock-time">{clk.time}</span>
+              <span className="eos-clock-zone">{clk.zone}</span>
+            </time>
+          );
+        })()}
         <button className="btn btn--ghost btn--icon themebtn" type="button" aria-label={dark ? "Switch to light" : "Switch to dark"} onClick={toggleTheme}><Icon name={dark ? "sun" : "moon"} /></button>
       </header>
       <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} ov={ov} projector={projector} onToggleProjector={toggleProjector} />
