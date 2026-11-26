@@ -17,7 +17,13 @@ export function seriesSentence(s: Series, now = new Date()): string {
   const l = s.latest;
   switch (s.state) {
     case "stale": return `Prices haven't updated since ${l ? when(l.bar_end, now) : "they were added"}.`  // the page's one banner says who was told;
-    case "moved": return `An unusual move: ${zx(l?.max_z)} a normal move${l?.max_z_days ? ` over ${l.max_z_days} day${l.max_z_days === 1 ? "" : "s"}` : ""}.`;
+    case "moved": {
+      const belowThreshold = l?.max_z !== null && l?.max_z !== undefined && Math.abs(l.max_z) < s.detector.z_threshold;
+      if (belowThreshold) {
+        return `Recent unusual move · Cooldown active · Latest ${l.max_z_days ? `${l.max_z_days}d ` : ""}move: ${zx(l.max_z)} normal.`;
+      }
+      return `An unusual move: ${zx(l?.max_z)} a normal move${l?.max_z_days ? ` over ${l.max_z_days} day${l.max_z_days === 1 ? "" : "s"}` : ""}.`;
+    }
     case "warming_up": return "Still learning what a normal move is; it can flag moves once it has enough history.";
     case "pending": return "Waiting for its first prices.";
     case "paused": return "Paused: prices aren't updated until it's resumed.";

@@ -29,7 +29,7 @@ export function TelemetryStrip({ ov, now }: { ov: Overview | null; now: Date; do
       <Link className="eos-sched-item" to="/monitors">
         <Icon name="monitor" />
         <b>Monitors ({ov.counts.monitors_live})</b>
-        {monSt?.next_check_at && <span>· next <span className="mono">{when(monSt.next_check_at, now)}</span></span>}
+        {monSt?.next_check_at && <span className="eos-sched-sub">· next <span className="mono">{when(monSt.next_check_at, now)}</span></span>}
         {ov.counts.monitors_waiting_approval > 0 && (
           <span style={{ color: "var(--info-ink)", fontWeight: 600 }}>· {ov.counts.monitors_waiting_approval} approval</span>
         )}
@@ -38,8 +38,8 @@ export function TelemetryStrip({ ov, now }: { ov: Overview | null; now: Date; do
       <Link className="eos-sched-item" to="/radar">
         <Icon name="radar" />
         <b>Radar</b>
-        {ov.radar.last_run_at && <span>· last <span className="mono">{ago(ov.radar.last_run_at, now)}</span></span>}
-        {ov.radar.next_run_at && <span>· next <span className="mono">{when(ov.radar.next_run_at, now)}</span></span>}
+        {ov.radar.last_run_at && <span className="eos-sched-sub">· last <span className="mono">{ago(ov.radar.last_run_at, now)}</span></span>}
+        {ov.radar.next_run_at && <span className="eos-sched-sub">· next <span className="mono">{when(ov.radar.next_run_at, now)}</span></span>}
       </Link>
       <span className="eos-sched-div" aria-hidden="true" />
       <Link className="eos-sched-item" to="/series">
@@ -112,13 +112,7 @@ export function LiveWire({ ov, now, down = false }: { ov: Overview | null; now: 
   const tick = ov.services?.tick;
   const liveTone = down || !tick?.ok ? "warn" : "live";
 
-  const renderTrack = (dup: boolean) => entries.map(item => (
-    <Link key={`${dup ? "b" : "a"}-${item.key}`} className="eos-tick-item" to={item.to} tabIndex={dup ? -1 : 0}>
-      <span className={`eos-tick-tag ${item.tone ?? "info"}`}>{item.tag}</span>
-      <span className="eos-tick-txt">{item.text}</span>
-      {item.meta && <span className="eos-tick-meta">· {item.meta}</span>}
-    </Link>
-  ));
+  const shown = entries.slice(0, 3);
 
   return (
     <div className="eos-ticker eos-wire" role="region" aria-label="Live captured risk and news feed">
@@ -126,11 +120,14 @@ export function LiveWire({ ov, now, down = false }: { ov: Overview | null; now: 
         <span className={`eos-agent-dot ${liveTone}`} aria-hidden="true" />
         <span>LIVE WIRE</span>
       </Link>
-      <div className="eos-tick-viewport">
-        <div className="eos-tick-track">
-          <div className="eos-tick-group">{renderTrack(false)}</div>
-          <div className="eos-tick-group" aria-hidden="true">{renderTrack(true)}</div>
-        </div>
+      <div className="eos-tick-strip">
+        {shown.map(item => (
+          <Link key={item.key} className="eos-tick-item" to={item.to} title={item.text}>
+            <span className={`eos-tick-tag ${item.tone ?? "info"}`}>{item.tag}</span>
+            <span className="eos-tick-txt">{item.text}</span>
+            {item.meta && <span className="eos-tick-meta">· {item.meta}</span>}
+          </Link>
+        ))}
       </div>
     </div>
   );

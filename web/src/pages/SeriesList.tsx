@@ -172,7 +172,7 @@ export function SeriesList() {
   };
 
   return (
-    <div className="eos-pad" style={{ paddingBottom: 0 }}>
+    <div className="eos-pad" style={{ paddingBottom: 24 }}>
       <SurveillanceTabs right={isAdmin ? (
         <button className="btn btn--primary btn--sm" type="button" onClick={() => setAdding(true)} disabled={!status || left <= 0}>
           <Icon name="plus" />Watch symbol

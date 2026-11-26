@@ -24,7 +24,7 @@
    waiting keeps its dashes amber and sends out a ripple; being investigated has a light running round the dashes (a second dashed ring
    on top, shown through a turning conic mask, so its dashes sit exactly on the grey ones) and dots running down the line. */
 .ff-step[data-state="queued"] .ff-n, .ff-step[data-state="busy"] .ff-n { border-style:dashed; border-color:var(--hairline-2); }
-.ff-step[data-state="queued"] .ff-n { border-color:var(--medium); color:var(--medium-ink); animation:ffwait 2.2s ease-out infinite; }
+.ff-step[data-state="queued"] .ff-n { border-color:var(--high); color:var(--high-ink); }
 .ff-step[data-state="busy"] .ff-n { position:relative; color:var(--info-ink); }
 .ff-step[data-state="busy"] .ff-n::after { content:""; position:absolute; inset:-2px; border-radius:50%; border:2px dashed var(--info);
   -webkit-mask:conic-gradient(from var(--ffa), transparent 0 50%, #000 100%); mask:conic-gradient(from var(--ffa), transparent 0 50%, #000 100%);

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { ApiError } from "../api/client";
 import { seriesApi, type Bar, type Finding, type ProviderCall, type Series, type SimulateResult } from "../api/series";
-import { FactList, PageHeader, Places, Section, StatusPill, TechnicalDetails } from "../components/blocks";
+import { FactList, Fold, PageHeader, Places, Section, StatusPill, TechnicalDetails } from "../components/blocks";
 import { PriceChart, type Mark } from "../components/charts";
 import { spikeIndex } from "../components/chartMath";
 import { Icon } from "../components/Icon";
@@ -74,9 +74,10 @@ function Windows({ s }: { s: Series }) {
   const l = s.latest;
   const ds = (l?.windows ?? []).map(w => w.days);
   return (
-    <details className="card sd-fold">
-      <summary><h2>Compare windows{ds.length ? `: ${ds.join(", ").replace(/, (\d+)$/, " and $1")} days` : ""}</h2><span className="small muted">how unusual the latest price is over each</span></summary>
-      <p className="sec-line">{l?.typical_daily_move_pct ? <>A normal day moves <b>±{pctFine(l.typical_daily_move_pct).replace(/^\+/, "")}</b>. </> : null}AMIRI Agent {ruleText(s.detector.z_threshold)}.</p>
+    <Fold
+      summary={<><span>Compare windows{ds.length ? `: ${ds.join(", ").replace(/, (\d+)$/, " and $1")} days` : ""}</span><span className="small muted" style={{ fontWeight: 400, marginLeft: "auto" }}>how unusual the latest price is over each</span></>}
+    >
+      <p className="sec-line" style={{ paddingLeft: 0, paddingRight: 0 }}>{l?.typical_daily_move_pct ? <>A normal day moves <b>±{pctFine(l.typical_daily_move_pct).replace(/^\+/, "")}</b>. </> : null}AMIRI Agent {ruleText(s.detector.z_threshold)}.</p>
       {!l || !l.windows.length ? <p className="sec-line">No prices yet.</p> : (
         <div className="tblwrap"><table className="tbl">
           <thead><tr><th>Over</th><th>Change</th><th>Compared with usual</th></tr></thead>
@@ -91,15 +92,16 @@ function Windows({ s }: { s: Series }) {
           })}</tbody>
         </table></div>
       )}
-    </details>
+    </Fold>
   );
 }
 
 function FetchLog({ calls }: { calls: ProviderCall[] | null }) {
   return (
-    <details className="card sd-fold">
-      <summary><h2>Fetch log{calls ? ` (${calls.length})` : ""}</h2><span className="small muted">for the Platform Admin: every call to Twelve Data, errors exactly as returned</span></summary>
-      {!calls ? <InlineSkeleton /> : !calls.length ? <div className="bd muted small">No calls yet.</div> : (
+    <Fold
+      summary={<><span>Fetch log{calls ? ` (${calls.length})` : ""}</span><span className="small muted" style={{ fontWeight: 400, marginLeft: "auto" }}>every call to Twelve Data</span></>}
+    >
+      {!calls ? <InlineSkeleton /> : !calls.length ? <div className="muted small">No calls yet.</div> : (
         <div className="tblwrap"><table className="tbl">
           <thead><tr><th>When</th><th>Why</th><th>Result</th><th>New hours</th><th>Credits</th><th>Took</th><th>Error</th></tr></thead>
           <tbody>{calls.map(c => (
@@ -115,7 +117,7 @@ function FetchLog({ calls }: { calls: ProviderCall[] | null }) {
             </tr>))}</tbody>
         </table></div>
       )}
-    </details>
+    </Fold>
   );
 }
 

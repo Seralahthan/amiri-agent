@@ -252,7 +252,7 @@ export function MonitorsPage() {
   const line = (m: MonitorRow, c = commonAll, waiting = false) => <MonitorLine key={m.monitor_id} m={m} run={mine(runs[m.monitor_id], m)}
     found={mine(found[m.monitor_id], m)} onChange={load} common={c} waiting={waiting} />;
   return (
-    <div className="eos-pad" style={{ paddingBottom: 0 }}>
+    <div className="eos-pad" style={{ paddingBottom: 24 }}>
       <SurveillanceTabs right={empty ? undefined : actions} />
       <div className="eos-hd">
         <div>

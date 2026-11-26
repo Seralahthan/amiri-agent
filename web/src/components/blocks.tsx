@@ -154,9 +154,34 @@ export function Steps({ steps, label = "Progress" }: { steps: Step[]; label?: st
   );
 }
 
+/** Accessible disclosure panel matching .eos-fold styling with explicit aria-expanded + aria-controls. */
+export function Fold({ summary, defaultOpen = false, className = "eos-fold", bodyClassName = "eos-fold-bd", children }: {
+  summary: ReactNode; defaultOpen?: boolean; className?: string; bodyClassName?: string; children: ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const id = useId();
+  return (
+    <div className={`${className}${open ? " is-open" : ""}`}>
+      <button type="button" className="eos-fold-sum" aria-expanded={open} aria-controls={id} onClick={() => setOpen(o => !o)}>
+        {summary}
+      </button>
+      {open && <div id={id} className={bodyClassName}>{children}</div>}
+    </div>
+  );
+}
+
 /** Ids, versions, scores and raw reasons: closed until someone wants them. */
 export function TechnicalDetails({ children, summary = "Technical details" }: { children: ReactNode; summary?: string }) {
-  return <details className="tech"><summary>{summary}</summary><div className="tech-bd">{children}</div></details>;
+  const [open, setOpen] = useState(false);
+  const id = useId();
+  return (
+    <div className={`tech${open ? " is-open" : ""}`}>
+      <button type="button" className="tech-sum" aria-expanded={open} aria-controls={id} onClick={() => setOpen(o => !o)}>
+        {summary}
+      </button>
+      {open && <div id={id} className="tech-bd">{children}</div>}
+    </div>
+  );
 }
 
 /** A finding, as where it came from: the source, the headline (linked when there is one) and one line about it. */

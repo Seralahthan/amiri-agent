@@ -1,9 +1,10 @@
 // Alerts — Master-Detail Split Triage Workspace (V2.2: Zero screen bouncing, inline search, ✦ Investigation Agent).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { ApiError } from "../api/client";
 import { alertsApi, type AlertItem, type AlertSummary } from "../api/alerts";
-import { investigationApi, type EventDetail } from "../api/investigation";
+import { investigationApi, type EventDetail, type EventRow } from "../api/investigation";
+import { Fold } from "../components/blocks";
 import { FlowFilter } from "../components/FlowFilter";
 import { Icon } from "../components/Icon";
 import { SearchInput } from "../components/SearchInput";
@@ -40,17 +41,37 @@ function runs(a: AlertItem) {
 export function AlertsPage() {
   const toast = useToast();
   const now = useNow(60_000);
-  const [show, setShow] = useState<Show>("new");
-  const [team, setTeam] = useState("");
-  const [query, setQuery] = useState("");
-  const [levelFilter, setLevelFilter] = useState("");
-  const [selId, setSelId] = useState<string | null>(null);
+  const [sp, setSp] = useSearchParams();
+  const rawShow = sp.get("status") as Show | null;
+  const show: Show = rawShow && ["new", "acknowledged", "resolved", "all"].includes(rawShow) ? rawShow : "new";
+  const team = sp.get("team") ?? "";
+  const query = sp.get("q") ?? "";
+  const levelFilter = sp.get("level") ?? "";
+  const eventFilter = sp.get("event") ?? "";
+  const selId = sp.get("alert") ?? null;
+
+  const setParam = useCallback((key: string, val: string, def = "") => {
+    setSp(prev => {
+      const next = new URLSearchParams(prev);
+      if (!val || val === def) next.delete(key); else next.set(key, val);
+      return next;
+    }, { replace: true });
+  }, [setSp]);
+
+  const setShow = (v: Show) => setParam("status", v, "new");
+  const setTeam = (v: string) => setParam("team", v, "");
+  const setQuery = (v: string) => setParam("q", v, "");
+  const setLevelFilter = (v: string) => setParam("level", v, "");
+  const setSelId = useCallback((id: string | null) => setParam("alert", id ?? "", ""), [setParam]);
+  const clearEventFilter = () => setParam("event", "", "");
+
   const [mobOpen, setMobOpen] = useState(false);
   const hoverTimer = useRef<number>(0);
   useEffect(() => () => window.clearTimeout(hoverTimer.current), []);
   const [items, setItems] = useState<AlertItem[] | null>(null);
   const [sum, setSum] = useState<AlertSummary | null>(null);
   const [events, setEvents] = useState<Record<string, EventDetail>>({});
+  const [eventRows, setEventRows] = useState<Record<string, EventRow>>({});
   const [err, setErr] = useState<unknown>(null);
   const [asking, setAsking] = useState<"ack" | "resolve" | null>(null);
   const [note, setNote] = useState("");
@@ -58,12 +79,27 @@ export function AlertsPage() {
 
   const load = useCallback(async () => {
     try {
-      const [s, xs] = await Promise.all([alertsApi.summary(), alertsApi.list({ status: show === "all" ? undefined : show, owner: team || undefined })]);
+      const [s, xs] = await Promise.all([
+        alertsApi.summary(),
+        alertsApi.list({
+          status: show === "all" ? undefined : show,
+          owner: team || undefined,
+          event_id: eventFilter || undefined,
+        }),
+      ]);
       setSum(s); setItems(xs); setErr(null);
     } catch (e) { setErr(e); }
-  }, [show, team]);
+  }, [show, team, eventFilter]);
 
-  useEffect(() => setItems(null), [show, team]);
+  useEffect(() => {
+    investigationApi.events().then(rows => {
+      const map: Record<string, EventRow> = {};
+      rows.forEach(r => { map[r.event_id] = r; });
+      setEventRows(map);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => setItems(null), [show, team, eventFilter]);
   useEffect(() => { load(); const t = setInterval(load, 60_000); return () => clearInterval(t); }, [load]);
 
   const queue = useMemo(() => {
@@ -73,13 +109,26 @@ export function AlertsPage() {
       .filter(a => {
         if (show !== "all" && a.status !== show) return false;
         if (levelFilter && a.level !== levelFilter) return false;
+        if (eventFilter && a.event_id !== eventFilter) return false;
         if (!q) return true;
-        return [a.title, a.owner, a.event_title, a.top_finding ?? "", ...a.effects.map(e => `${e.product} ${e.metric_name} ${e.chain_label}`)].join(" ").toLowerCase().includes(q);
+        const canon = eventRows[a.event_id] ? eventTitle(eventRows[a.event_id]) : a.event_title;
+        return [a.title, a.owner, a.event_title, canon, a.top_finding ?? "", ...a.effects.map(e => `${e.product} ${e.metric_name} ${e.chain_label}`)].join(" ").toLowerCase().includes(q);
       })
       .sort((x, y) => alertOrder({ ...x, at: changed(x) }, { ...y, at: changed(y) }));
-  }, [items, show, query, levelFilter]);
+  }, [items, show, query, levelFilter, eventFilter, eventRows]);
 
   const cur = queue?.find(a => a.alert_id === selId) ?? queue?.[0] ?? null;
+
+  const groupedEffects = useMemo(() => {
+    if (!cur) return [];
+    const map = new Map<string, typeof cur.effects>();
+    for (const e of cur.effects) {
+      const list = map.get(e.product) ?? [];
+      list.push(e);
+      map.set(e.product, list);
+    }
+    return [...map.entries()];
+  }, [cur]);
 
   useEffect(() => {
     setAsking(null); setNote("");
@@ -104,14 +153,22 @@ export function AlertsPage() {
   };
 
   const ev = cur ? events[cur.event_id] : undefined;
-  const evName = (a: AlertItem) => (events[a.event_id] ? eventTitle(events[a.event_id]) : a.event_title);
+  const evName = (a: AlertItem) => {
+    const srcEv = events[a.event_id] ?? eventRows[a.event_id];
+    return srcEv ? eventTitle(srcEv) : eventTitle({ title: a.event_title });
+  };
+  const eventFilterLabel = eventFilter
+    ? (events[eventFilter] ? eventTitle(events[eventFilter])
+      : eventRows[eventFilter] ? eventTitle(eventRows[eventFilter])
+      : items?.find(a => a.event_id === eventFilter)?.event_title ?? eventFilter)
+    : "";
   const products = cur ? [...new Set(cur.effects.map(e => e.product))] : [];
   const src = cur?.sources?.[0] ? sourceInfo(cur.sources[0]) : null;
   const article = cur ? ev?.findings.flatMap(f => f.evidence?.headlines ?? []).find(h => h.url && (!cur.top_finding || h.title === cur.top_finding)) : undefined;
   const singleLevel = queue ? new Set(queue.map(a => a.level)).size <= 1 : false;
 
   return (
-    <div className="eos-pad" style={{ paddingBottom: 0 }}>
+    <div className="eos-pad" style={{ paddingBottom: 24 }}>
       <div className="eos-hd">
         <div>
           <div className="label">Team Action Queue</div>
@@ -142,6 +199,13 @@ export function AlertsPage() {
         <FlowFilter toned label="Which alerts" value={show} onChange={s => { setShow(s); setMobOpen(false); }} all={{ key: "all", label: "All", count: nAt("all") }}
           steps={([["new", "To review", "queued"], ["acknowledged", "Acknowledged", "held"], ["resolved", "Resolved", "done"]] as const)
             .map(([key, label, state]) => ({ key, label, count: nAt(key), state }))} />
+        {eventFilter && (
+          <span className="chip" style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "var(--accent-soft)", color: "var(--accent-ink)", borderColor: "var(--accent-line)", fontWeight: 600 }}>
+            <span>Filtered by event: {eventFilterLabel}</span>
+            <button type="button" onClick={clearEventFilter} aria-label="Clear event filter"
+              style={{ border: 0, background: "transparent", color: "inherit", cursor: "pointer", padding: "0 2px", fontSize: 15, lineHeight: 1 }}>×</button>
+          </span>
+        )}
       </div>
 
       {queue === null ? (err == null && <div className="mt12"><ListSkeleton rows={4} /></div>)
@@ -226,28 +290,44 @@ export function AlertsPage() {
                         <tr><th>Product</th><th>Expected (AI estimate)</th><th>Your data says</th></tr>
                       </thead>
                       <tbody>
-                        {cur.effects.map(e => {
-                          const m = e.check ? checkMove(e.check.what) : null;
-                          return (
-                            <tr key={e.hypothesis_id}>
-                              <td>
-                                <strong style={{ color: "var(--ink)" }}>{e.product}</strong>
-                                <div className="small muted">{e.chain_label}</div>
-                              </td>
-                              <td>
-                                <div style={{ color: "var(--ink)", fontWeight: 500 }}>{capFirst(impactText(e.metric_name, e.direction))}</div>
-                                <div className="small muted">{sizeTiming(e.size, e.timing)}</div>
-                              </td>
-                              <td>
-                                {m ? (
-                                  <><strong style={{ color: "var(--ink)" }}>{m.move}</strong> <span className="small muted">{m.against}</span></>
-                                ) : (
-                                  <span className="badge b-noeffect">{cur.basis === "data" ? "Waiting for data" : "Expectations only"}</span>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
+                        {groupedEffects.map(([product, list]) => (
+                          <tr key={product}>
+                            <td>
+                              <strong style={{ color: "var(--ink)" }}>{product}</strong>
+                              <div className="col" style={{ gap: 4, marginTop: 2 }}>
+                                {list.map(e => (
+                                  <div key={e.hypothesis_id} className="small muted">{e.chain_label}</div>
+                                ))}
+                              </div>
+                            </td>
+                            <td>
+                              <div className="col" style={{ gap: 6 }}>
+                                {list.map(e => (
+                                  <div key={e.hypothesis_id}>
+                                    <div style={{ color: "var(--ink)", fontWeight: 500 }}>{capFirst(impactText(e.metric_name, e.direction))}</div>
+                                    <div className="small muted">{sizeTiming(e.size, e.timing)}</div>
+                                  </div>
+                                ))}
+                              </div>
+                            </td>
+                            <td>
+                              <div className="col" style={{ gap: 6 }}>
+                                {list.map(e => {
+                                  const m = e.check ? checkMove(e.check.what) : null;
+                                  return (
+                                    <div key={e.hypothesis_id}>
+                                      {m ? (
+                                        <><strong style={{ color: "var(--ink)" }}>{m.move}</strong> <span className="small muted">{m.against}</span></>
+                                      ) : (
+                                        <span className="badge b-noeffect">{cur.basis === "data" ? "Waiting for data" : "Expectations only"}</span>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
                   </div>
@@ -265,14 +345,13 @@ export function AlertsPage() {
                   </div>
                 </div>
 
-                <details className="eos-fold" open>
-                  <summary>Audit trail ({runs(cur).length} entries)</summary>
-                  <div className="eos-fold-bd col" style={{ gap: 4 }}>
+                <Fold summary={`Audit trail (${runs(cur).length} entries)`} defaultOpen={false} bodyClassName="eos-fold-bd col">
+                  <div className="col" style={{ gap: 4 }}>
                     {runs(cur).map((r, i) => (
                       <div key={i}><b>{CHANGE[r.change] ?? r.change}{r.n > 1 ? ` (${r.n}×)` : ""}</b> · <span className="mono">{dayTime(r.at)}</span>{r.by ? ` · ${r.by}` : ""}</div>
                     ))}
                   </div>
-                </details>
+                </Fold>
               </div>
             )}
           </div>

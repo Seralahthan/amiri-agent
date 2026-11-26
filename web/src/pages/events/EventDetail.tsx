@@ -5,7 +5,7 @@ import { Link, useParams } from "react-router-dom";
 import { ApiError } from "../../api/client";
 import { investigationApi, type EventDetail } from "../../api/investigation";
 import { alertsApi, type AlertItem } from "../../api/alerts";
-import { DeadlineBadge, FactList, HowItWorks, PageHeader, TechnicalDetails, TonePill } from "../../components/blocks";
+import { DeadlineBadge, FactList, Fold, HowItWorks, PageHeader, TechnicalDetails, TonePill } from "../../components/blocks";
 import { CheckPill } from "../../components/checks";
 import { Icon } from "../../components/Icon";
 import { Empty, LoadError, PageSkeleton, useRole } from "../../components/ui";
@@ -49,6 +49,8 @@ function EventPage({ d, retryAlerts }: { d: D; retryAlerts: () => void }) {
   const panel = useId();
   const { e } = d, n = e.hypotheses.length;
   const open = e.status === "open";
+  const isMarket = d.lead?.source === "timeseries";
+  const alertsUrl = `/alerts?event=${encodeURIComponent(e.event_id)}`;
 
   return (
     <div className="eos-pad evd">
@@ -67,13 +69,13 @@ function EventPage({ d, retryAlerts }: { d: D; retryAlerts: () => void }) {
             <p className="sub">{n ? <><b>{count(n, "possible impact")}</b> on <b>{count(d.products.length, "product")}</b>{forYou(d) && `, ${forYou(d)}`}.{" "}
               {!d.alertsFailed && d.teams.length > 0 && <><b>{count(d.teams.length, "team")}</b> {d.teams.length === 1 ? "has" : "have"} an alert
                 {d.toReview === d.alerts.length ? `; ${d.alerts.length === 1 ? "not" : "none"} taken on yet` : d.toReview ? `; ${d.toReview} still to review` : ", all taken on"}.</>}</>
-              : <>Nothing in it reaches your products. {open ? "It closes on its own when the news stops." : ""}</>}</p>
+              : <>Nothing in it reaches your products. {open ? (isMarket ? "It closes on its own once prices settle." : "It closes on its own when the news stops.") : ""}</>}</p>
           </div>
-          {d.toReview > 0 && <Link className="btn btn--primary" to="/alerts"><Icon name="alert" />Review {count(d.toReview, "alert")}</Link>}
+          {d.toReview > 0 && <Link className="btn btn--primary" to={alertsUrl}><Icon name="alert" />Review {count(d.toReview, "alert")}</Link>}
         </div>
         <div id={panel} className="ph-panel" hidden={!help}><HowItWorks><p>{open
-          ? <>This event stays open until <b>{dayTime(e.open_until)}</b>: new news about the same thing joins it instead of starting a new one.</>
-          : <>This event closed {e.closed_at ? dayTime(e.closed_at) : ""}: nothing new about it came in for a while.</>}</p></HowItWorks></div>
+          ? <>This event stays open until <b>{dayTime(e.open_until)}</b>: {isMarket ? "further unusual moves on the same price series join it instead of starting a new one." : "new news about the same thing joins it instead of starting a new one."}</>
+          : <>This event closed {e.closed_at ? dayTime(e.closed_at) : ""}: {isMarket ? "prices stayed within their normal range." : "nothing new about it came in for a while."}</>}</p></HowItWorks></div>
         {d.alertsFailed && <p className="evd-once evd-fail"><Icon name="warn" />The alerts for this event couldn't be loaded{n ? ", so the impacts aren't grouped by team" : ""}.
           <button type="button" className="evd-retry" onClick={retryAlerts}>Try again</button></p>}
         {e.world !== "live" && <p className="evd-sim"><Icon name="info" />Simulated: this event came from a test move, not real news. It stays out of the live picture.</p>}
@@ -94,7 +96,7 @@ function EventPage({ d, retryAlerts }: { d: D; retryAlerts: () => void }) {
                       <button type="button" aria-pressed={viewBy === "team"} onClick={() => setViewBy("team")}>By team</button>
                     </div>
                   )}
-                  <Link className="evd-all" to="/alerts">All alerts →</Link>
+                  <Link className="evd-all" to={alertsUrl}>Event alerts →</Link>
                 </div>
               </div>
               {d.onePhrase && <p className="evd-once">{d.teams.length === 1 ? "The team has" : "Each team has"} {d.onePhrase}.</p>}
@@ -110,6 +112,7 @@ function EventPage({ d, retryAlerts }: { d: D; retryAlerts: () => void }) {
                     <TeamCard
                       key={t.owner}
                       owner={t.owner}
+                      eventId={e.event_id}
                       count={productLineCount(d, t.hs)}
                       status={!d.onePhrase ? [...new Set(t.alerts.map(alertPhrase))].join("; ") : undefined}
                       waiting={t.alerts.some(a => a.status === "new")}
@@ -139,10 +142,9 @@ function EventPage({ d, retryAlerts }: { d: D; retryAlerts: () => void }) {
           </div>
 
           {e.set_aside.length > 0 && (
-            <details className="eos-fold">
-              <summary>Considered, no impact <span className="eos-sec-cnt is-closed" style={{ marginLeft: "auto" }}>{e.set_aside.length}</span></summary>
-              <div className="eos-fold-bd"><SetAside d={d} /></div>
-            </details>
+            <Fold summary={<>Considered, no impact <span className="eos-sec-cnt is-closed" style={{ marginLeft: "auto" }}>{e.set_aside.length}</span></>}>
+              <SetAside d={d} />
+            </Fold>
           )}
 
           <Report d={d} />

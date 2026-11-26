@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import type { AlertItem } from "../../api/alerts";
 import type { EventDetail, Hypothesis } from "../../api/investigation";
-import { FactList, Places, TechnicalDetails } from "../../components/blocks";
+import { FactList, Fold, Places, TechnicalDetails } from "../../components/blocks";
 import { CheckPill } from "../../components/checks";
 import { Icon } from "../../components/Icon";
 import { Markdown } from "../../components/markdown";
@@ -77,10 +77,11 @@ export const forYou = (d: D) => d.allBad ? (d.e.hypotheses.length === 2 ? "both 
   : d.nBad && d.nGood ? `${d.nBad} bad and ${d.nGood} good for you` : d.nBad ? "bad for you" : d.nGood ? "good for you" : "";
 
 /** Framed collapsible Team Card matching Institution's tinted-header + emerald-rail grammar. */
-export function TeamCard({ owner, count: n, status, waiting, noLink, children }: {
-  owner: string; count: number; status?: string; waiting?: boolean; noLink?: boolean; children: ReactNode;
+export function TeamCard({ owner, eventId, count: n, status, waiting, noLink, children }: {
+  owner: string; eventId?: string; count: number; status?: string; waiting?: boolean; noLink?: boolean; children: ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(false);
+  const alertsTo = eventId ? `/alerts?event=${encodeURIComponent(eventId)}&team=${encodeURIComponent(owner)}` : "/alerts";
   return (
     <div className={`card eos-sec-card${collapsed ? " is-collapsed" : ""}`}>
       <div className="hd">
@@ -95,7 +96,7 @@ export function TeamCard({ owner, count: n, status, waiting, noLink, children }:
         </button>
         <span className="spacer" />
         {status && <span className={`evd-team-st${waiting ? " wait" : ""}`}>{status}</span>}
-        {!noLink && <Link className="btn btn--sm btn--ghost" to="/alerts">Alerts →</Link>}
+        {!noLink && <Link className="btn btn--sm btn--ghost" to={alertsTo}>Alerts →</Link>}
       </div>
       {!collapsed && <div className="evd-team-bd">{children}</div>}
     </div>
@@ -153,7 +154,7 @@ export function CausalChain({ d }: { d: D }) {
       <li className={`evd-chain-step${d.toReview > 0 ? " is-wait" : ""}`}>
         <span className="evd-chain-k">03 · Teams Alerted</span>
         <strong className="evd-chain-v">
-          {d.alertsFailed ? "Unavailable" : d.teams.length ? <Link to="/alerts">{count(d.teams.length, "team")}</Link> : "No alerts"}
+          {d.alertsFailed ? "Unavailable" : d.teams.length ? <Link to={`/alerts?event=${encodeURIComponent(e.event_id)}`}>{count(d.teams.length, "team")}</Link> : "No alerts"}
         </strong>
         <span className="evd-chain-m">{d.toReview ? `${d.toReview} waiting for review` : d.teams.length ? "All taken on" : "None sent"}</span>
       </li>
@@ -217,7 +218,11 @@ function ProductLine({ d, hs, showTeams }: { d: D; hs: Hypothesis[]; showTeams?:
     <summary><span className="evd-l1"><b>{productOf(hs[0])}</b>: {lower(move)}
       {segs.length > 0 && <span className="muted"> ({listText(hs.length > segs.length ? [...segs, "overall"] : segs)})</span>}
       {mixed && bad !== null && <span className={`evd-for ${bad ? "bad" : "good"}`}> · {bad ? "bad for you" : "good for you"}</span>}</span>
-      {owners.length > 0 && <span className="evd-owners">{owners.join(", ")}</span>}
+      {owners.length > 0 && (
+        <span className="evd-owners" title={owners.join(", ")}>
+          {owners.length === 1 ? owners[0] : `${owners[0]} +${owners.length - 1} more`}
+        </span>
+      )}
       {d.validation && !d.same && c && <CheckPill c={{ verdict: c.verdict as VerdictKey, alert: c.alert, adverse: bad }} />}
       <span className="evd-st">{sizeTiming(hs[0].expected.size, hs[0].expected.timing)}</span>
       <Icon name="chevron" className="evd-chev" /></summary>
@@ -266,10 +271,21 @@ export function Story({ d }: { d: D }) {
 export const SetAside = ({ d }: { d: D }) => <ul className="evd-aside">{d.e.set_aside.map((s, i) =>
   <li key={i}><b>{productTypeLabel(s.product_type)}</b>, {lower(angleLabel(s.angle))}: {lower(SCREENING[s.decision] ?? "no clear link")}. <span className="muted">{s.reason}</span></li>)}</ul>;
 
+/** Clean raw internal tokens (chk:bab-el-mandeb, segment: remittance_linked) into readable English in the report. */
+function humanizeReport(md: string): string {
+  return md
+    .replace(/\b(?:chk|sea|reg|corridor|flow|prod|mech):([a-z0-9_-]+)/gi, (_, slug: string) =>
+      slug.replace(/[-_]+/g, " ").replace(/\b\w/g, c => c.toUpperCase()))
+    .replace(/\bsegment:\s*([a-z0-9_-]+)/gi, (_, slug: string) =>
+      `segment: ${slug.replace(/[-_]+/g, " ")}`);
+}
+
 /** The investigation's report, folded inside our tinted eos-fold; this event's part of it. */
 export const Report = ({ d }: { d: D }) => (
-  <details className="eos-fold">
-    <summary>Full investigation report <span className="small muted" style={{ fontWeight: 500, marginLeft: "auto" }}>AMIRI Agent</span></summary>
-    <div className="eos-fold-bd evd-rep">{d.report ? <Markdown text={d.report} /> : <span className="muted">No report.</span>}</div>
-  </details>
+  <Fold
+    summary={<>Full investigation report <span className="small muted" style={{ fontWeight: 500, marginLeft: "auto" }}>AMIRI Agent</span></>}
+    bodyClassName="eos-fold-bd evd-rep"
+  >
+    {d.report ? <Markdown text={humanizeReport(d.report)} /> : <span className="muted">No report.</span>}
+  </Fold>
 );

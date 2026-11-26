@@ -4,7 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { inst, type Check, type Profile } from "../api/institutions";
 import { overviewApi, type Attention, type Overview } from "../api/overview";
 import { Icon } from "../components/Icon";
-import { ToneGlyph, TonePill } from "../components/blocks";
+import { Fold, ToneGlyph, TonePill } from "../components/blocks";
 import { Banner, DEMOS, errText, isDown, LoadError, PageHead, PageSkeleton, useNow, useRole } from "../components/ui";
 import { ago, pct, plural, price, TIME_ZONE, ZONE_LABEL } from "../format";
 import { eventTitle } from "../plain";
@@ -230,9 +230,8 @@ export function OverviewPage() {
           )}
 
           {(rest.length > 0 || recs.length > 0) && (
-            <details className="eos-fold" open>
-              <summary>Pending approvals &amp; governance ({rest.slice(0, 4).length + recs.slice(0, 2).length})</summary>
-              <div className="eos-fold-bd col" style={{ gap: 8 }}>
+            <Fold summary={`Pending approvals & governance (${rest.slice(0, 4).length + recs.slice(0, 2).length})`} defaultOpen>
+              <div className="col" style={{ gap: 8 }}>
                 {rest.slice(0, 4).map((a, idx) => (
                   <div key={idx} className="row" style={{ gap: 10 }}>
                     <span className={`badge ${a.level === "crit" ? "b-down" : a.level === "warn" ? "b-warn" : "b-info"}`}>
@@ -250,7 +249,7 @@ export function OverviewPage() {
                   </div>
                 ))}
               </div>
-            </details>
+            </Fold>
           )}
         </div>
       </div>

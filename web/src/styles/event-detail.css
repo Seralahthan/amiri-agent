@@ -45,7 +45,7 @@
 .evd-stepper .st-body { display: flex; flex-direction: column; min-width: 0; }
 .evd-stepper .st-t { font-size: 12.5px; font-weight: 600; color: var(--ink); line-height: 1.25; }
 .evd-stepper .st-off .st-t { color: var(--ink-3); font-weight: 500; }
-.evd-stepper .st-s { font-size: 11.5px; color: var(--ink-3); line-height: 1.25; }
+.evd-stepper .st-s { font-size: 12px; color: var(--ink-3); line-height: 1.25; }
 .evd-stepper .st-wait .st-s { color: var(--high-ink); font-weight: 500; }
 
 /* 2-column Asymmetric Dossier */
@@ -73,7 +73,7 @@
 
 /* Team card status pill */
 .evd-team-st {
-  font-size: 11.5px; font-weight: 500; color: var(--ink-3);
+  font-size: 12px; font-weight: 500; color: var(--ink-3);
   padding: 2px 8px; border-radius: 999px; background: var(--sunken);
 }
 .evd-team-st.wait {
@@ -98,7 +98,7 @@
 .evd-for.bad { color: var(--critical-ink); font-weight: 600; }
 .evd-for.good { color: var(--accent-ink); font-weight: 600; }
 .evd-st {
-  font-size: 11.5px; font-weight: 500; color: var(--ink-2); white-space: nowrap;
+  font-size: 12px; font-weight: 500; color: var(--ink-2); white-space: nowrap;
   padding: 2px 8px; border-radius: 999px; background: var(--sunken);
 }
 .evd-chev { width: 14px; height: 14px; flex: none; color: var(--ink-3); transition: transform 160ms var(--ease-out); }
@@ -127,7 +127,7 @@
 .evd .ev-lab {
   display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px;
   border: 1px solid var(--hairline-2); border-radius: 999px;
-  font-size: 11.5px; font-weight: 600; color: var(--ink-2); background: var(--pane); white-space: nowrap;
+  font-size: 12px; font-weight: 600; color: var(--ink-2); background: var(--pane); white-space: nowrap;
 }
 .evd .ev-lab svg { width: 12px; height: 12px; flex: none; }
 .evd .ev-lab.src-radar { border-color: var(--info-line); color: var(--info-ink); background: var(--info-soft); }
@@ -169,7 +169,7 @@
 }
 .evd-chain-step:last-child { border-right: 0; }
 .evd-chain-step.is-wait { background: color-mix(in oklch, var(--high) 6%, var(--pane)); }
-.evd-chain-k { font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); }
+.evd-chain-k { font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-3); }
 .evd-chain-v { font-size: 15px; font-weight: 700; color: var(--ink); line-height: 1.25; }
 .evd-chain-v a { color: var(--accent-ink); text-decoration: none; }
 .evd-chain-v a:hover { text-decoration: underline; }
@@ -189,8 +189,9 @@
   background: var(--pane); color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
 }
 .evd-owners {
-  font-size: 11.5px; color: var(--ink-3); white-space: nowrap;
-  max-width: 220px; overflow: hidden; text-overflow: ellipsis;
+  font-size: 12px; color: var(--ink-2); white-space: nowrap; flex-shrink: 0;
+  padding: 2px 8px; border-radius: 999px; background: var(--sunken);
+  border: 1px solid var(--hairline);
 }
 
 /* Side-by-side AI Estimate vs. Verified Bank Data detail panel */
@@ -199,11 +200,15 @@
 }
 .evd-det-col {
   display: flex; flex-direction: column; gap: 8px; padding: 10px 12px;
+  min-width: 0; overflow-wrap: anywhere;
   background: var(--pane); border: 1px solid var(--hairline); border-radius: 8px;
 }
+.evd-det-col .facts > div { flex-wrap: wrap; min-width: 0; }
+.evd-det-col .facts dd { min-width: 0; max-width: 100%; }
+.evd-det-col .badge { white-space: normal; text-align: left; max-width: 100%; line-height: 1.35; }
 .evd-det-col--data { border-left: 2px solid var(--accent-line); }
 .evd-det-hd {
-  font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
   color: var(--ink-3);
 }
 

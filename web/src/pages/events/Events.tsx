@@ -145,7 +145,7 @@ function Brief({ e, det, failed, onRetry, checks, why, onWhy }: { e: EventRow; d
           </details>
         </div>
       </div>
-    </> : e.hypotheses === 0 && <p>The investigation found nothing in it that reaches your products. It closes on its own when the news stops.</p>}
+    </> : e.hypotheses === 0 && <p>The investigation found nothing in it that reaches your products. {f?.source === "timeseries" ? "It closes on its own once prices settle." : "It closes on its own when the news stops."}</p>}
     {f && <p className="ev-src"><span>It started from</span>
       {si && <span className={`ev-lab src-${f.source}`}><Icon name={si.icon} />{si.label}</span>}
       <span>{url ? <a href={url} target="_blank" rel="noreferrer">{f.title}<Icon name="external" className="src-ext" /><span className="sr"> (opens the article)</span></a> : f.title}

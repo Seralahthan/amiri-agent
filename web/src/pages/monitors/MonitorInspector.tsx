@@ -9,10 +9,17 @@ import { ago, dayTime } from "../../format";
 import { everyText, undated } from "../../plain";
 import { MonitorActions, StatusBadge } from "./Monitors";
 
+const ACRONYMS = new Set(["USD", "AED", "LKR", "INR", "EUR", "GBP", "SGD", "SAR", "QAR", "KWD", "OMR", "BHD", "JPY", "AUD", "CAD", "CHF", "ALM", "FX", "AI", "SME", "GDP", "CPI", "KPI", "API", "SQL", "SWIFT", "AML", "KYC", "CBSL", "IMF", "OPEC"]);
+const titleCaseWithAcronyms = (s: string) =>
+  s.replace(/[-_]+/g, " ").replace(/\b[a-z0-9]+\b/gi, w => {
+    const up = w.toUpperCase();
+    return ACRONYMS.has(up) ? up : w[0].toUpperCase() + w.slice(1).toLowerCase();
+  });
+
 const formatExposureId = (id: string) => {
   const [prefix, rest] = id.includes(":") ? id.split(":", 2) : ["", id];
-  const clean = (rest || id).replace(/[-_]+/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-  return prefix ? `${prefix.replace(/\b\w/g, c => c.toUpperCase())} · ${clean}` : clean;
+  const clean = titleCaseWithAcronyms(rest || id);
+  return prefix ? `${titleCaseWithAcronyms(prefix)} · ${clean}` : clean;
 };
 
 export function MonitorInspector({ row, findings, onChange }: { row: MonitorRow; findings?: MonitorFinding[]; onChange: () => void }) {
