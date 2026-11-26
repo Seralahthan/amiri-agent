@@ -1047,6 +1047,7 @@ details.eos-fold[open] > summary::before {
     padding-bottom: env(safe-area-inset-bottom);
   }
   .appbar .menubtn { display: inline-flex; }
+  .appbar > .themebtn { display: inline-flex !important; margin-left: auto; }
 }
 
 /* Clean Enterprise Page Container, Header, Table & Focal Surface */
