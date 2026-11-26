@@ -133,22 +133,68 @@ export function Progress({ d }: { d: D }) {
   );
 }
 
-/** One possible impact opened: why, what is watched, the check against your data; ids for the admin. */
+/** Unified 4-Stage Causal Chain: replaces duplicate KPI ledger + stepper with one scannable flow. */
+export function CausalChain({ d }: { d: D }) {
+  const { e, lead } = d, n = e.hypotheses.length;
+  const si = lead ? sourceInfo(lead.source) : null;
+  const toneColor = d.tone === "bad" ? "var(--critical-ink)" : d.tone === "good" ? "var(--accent)" : d.tone === "mixed" ? "var(--high-ink)" : "var(--ink)";
+  return (
+    <ol className="evd-chain" aria-label="Event causal chain">
+      <li className="evd-chain-step">
+        <span className="evd-chain-k">01 · Signal</span>
+        <strong className="evd-chain-v">{si?.label ?? "External signal"}</strong>
+        <span className="evd-chain-m">{onDay(e.anchor.slice(0, 10))}{d.devs.length > 0 ? ` · +${d.devs.length} joined` : ""}</span>
+      </li>
+      <li className="evd-chain-step">
+        <span className="evd-chain-k">02 · Possible Impacts</span>
+        <strong className="evd-chain-v" style={{ color: toneColor }}>{n ? `${count(n, "impact")} · ${count(d.products.length, "product")}` : "None traced"}</strong>
+        <span className="evd-chain-m">{forYou(d) ? forYou(d).replace(/^./, c => c.toUpperCase()) : "No product reach"}</span>
+      </li>
+      <li className={`evd-chain-step${d.toReview > 0 ? " is-wait" : ""}`}>
+        <span className="evd-chain-k">03 · Teams Alerted</span>
+        <strong className="evd-chain-v">
+          {d.alertsFailed ? "Unavailable" : d.teams.length ? <Link to="/alerts">{count(d.teams.length, "team")}</Link> : "No alerts"}
+        </strong>
+        <span className="evd-chain-m">{d.toReview ? `${d.toReview} waiting for review` : d.teams.length ? "All taken on" : "None sent"}</span>
+      </li>
+      <li className="evd-chain-step">
+        <span className="evd-chain-k">04 · Your Bank Data</span>
+        <strong className="evd-chain-v" style={{ color: !d.validation ? "var(--ink-3)" : d.checked ? "var(--accent)" : "var(--ink)" }}>
+          {!d.validation ? "Checks off" : d.checked ? `${d.checked} of ${n} checked` : "Waiting for data"}
+        </strong>
+        <span className="evd-chain-m">{!d.validation ? "AI expectations only" : d.next ? `Next check ${onDay(d.next)}` : "Verified by code"}</span>
+      </li>
+    </ol>
+  );
+}
+
+/** One possible impact opened: side-by-side AI Estimate vs. Verified Bank Data. */
 function Detail({ d, h }: { d: D; h: Hypothesis }) {
   const { role } = useRole();
   const t = d.tasks.get(h.hypothesis_id), c = t?.check;
   const next = t?.next_check_after ?? c?.next_check_after;
   const rest = c ? splitCheckText(c.what)[1] : "";
   return <div className="evd-det">
-    <FactList items={[
-      ["Why", `${h.chain_label}.`],
-      ["What we watch", <>{d.metric(h)}{segText(h) ? <span className="muted"> · {segText(h)}</span> : null}{t?.watch ? <span className="muted"> · {dateRange(t.watch.from, t.watch.until)}</span> : null}</>],
-      ["Your data", !d.validation ? null : c ? <span className="ck-sum"><CheckPill c={{ verdict: c.verdict as VerdictKey, alert: c.alert, adverse: d.adverse(h) }} />
-        {rest && <span>{rest}</span>}</span> : t ? "Not checked yet" : "No check for this one"],
-      ["Next check", next && !c?.final ? <>{onDay(next)} <span className="muted">({relDay(next)})</span></> : null],
-      ["How sure", c && !c.final && c.verdict !== "not_yet" && c.verdict !== "error" ? "First look; may change as more data comes in" : null],
-    ]} />
-    {c && <Link className="evd-small" to={c.spec_link}>What this metric means</Link>}
+    <div className="evd-det-split">
+      <div className="evd-det-col">
+        <div className="evd-det-hd">AMIRI Assessment · AI Estimate</div>
+        <FactList items={[
+          ["Why", `${h.chain_label}.`],
+          ["What we watch", <>{d.metric(h)}{segText(h) ? <span className="muted"> · {segText(h)}</span> : null}{t?.watch ? <span className="muted"> · {dateRange(t.watch.from, t.watch.until)}</span> : null}</>],
+        ]} />
+      </div>
+      <div className="evd-det-col evd-det-col--data">
+        <div className="evd-det-hd">Your Bank Data · Verified by Code</div>
+        <FactList items={[
+          ["Status", !d.validation ? <span className="badge b-noeffect">Checks switched off · Expectations only</span>
+            : c ? <span className="ck-sum"><CheckPill c={{ verdict: c.verdict as VerdictKey, alert: c.alert, adverse: d.adverse(h) }} />{rest && <span>{rest}</span>}</span>
+            : t ? "Waiting for your figures" : "No automated check"],
+          ["Next check", next && !c?.final ? <>{onDay(next)} <span className="muted">({relDay(next)})</span></> : null],
+          ["Confidence", c && !c.final && c.verdict !== "not_yet" && c.verdict !== "error" ? "First look; may change as more data arrives" : null],
+        ]} />
+        {c && <Link className="evd-small" to={c.spec_link}>What this metric means →</Link>}
+      </div>
+    </div>
     {role === "platform_admin" && <TechnicalDetails><FactList items={[["Possible impact", <span className="mono">{h.hypothesis_id}</span>],
       ["Check", t ? <span className="mono">{t.task_id}</span> : null], ["Metric", <span className="mono">{h.expected.metric}</span>],
       ["Mechanism", <span className="mono">{h.mechanism_id}</span>], ["Watch", t?.watch ? `${t.watch.from} to ${t.watch.until}` : null],
@@ -159,17 +205,19 @@ function Detail({ d, h }: { d: D; h: Hypothesis }) {
 
 /** A product's possible impacts as one line: the same move from two angles is one line ("from Saudi Arabia and overall"),
  *  both angles in the detail. Bad or good only when the event's impacts differ; the result only when the checks differ. */
-function ProductLine({ d, hs }: { d: D; hs: Hypothesis[] }) {
+function ProductLine({ d, hs, showTeams }: { d: D; hs: Hypothesis[]; showTeams?: boolean }) {
   const move = impactText(d.metric(hs[0]), hs[0].expected.direction);
   const segs = hs.map(segText).filter(Boolean);
   // every angle of one move shares its bad-or-good; a result shows on the line only when the angles' checks agree
   const mixed = d.nBad > 0 && d.nGood > 0, bads = new Set(hs.map(d.adverse)), bad = bads.size === 1 ? d.adverse(hs[0]) : null;
   const cs = hs.map(h => d.tasks.get(h.hypothesis_id)?.check);
   const c = cs.every(x => x && x.verdict === cs[0]?.verdict && x.alert === cs[0]?.alert) && bads.size === 1 ? cs[0] : undefined;
+  const owners = showTeams ? [...new Set(d.teams.filter(t => t.hs.some(th => hs.some(h => h.hypothesis_id === th.hypothesis_id))).map(t => t.owner))] : [];
   return <details className="evd-line">
     <summary><span className="evd-l1"><b>{productOf(hs[0])}</b>: {lower(move)}
       {segs.length > 0 && <span className="muted"> ({listText(hs.length > segs.length ? [...segs, "overall"] : segs)})</span>}
       {mixed && bad !== null && <span className={`evd-for ${bad ? "bad" : "good"}`}> · {bad ? "bad for you" : "good for you"}</span>}</span>
+      {owners.length > 0 && <span className="evd-owners">{owners.join(", ")}</span>}
       {d.validation && !d.same && c && <CheckPill c={{ verdict: c.verdict as VerdictKey, alert: c.alert, adverse: bad }} />}
       <span className="evd-st">{sizeTiming(hs[0].expected.size, hs[0].expected.timing)}</span>
       <Icon name="chevron" className="evd-chev" /></summary>
@@ -183,9 +231,9 @@ export function productLineCount(d: D, hs: Hypothesis[]): number {
 
 /** Impacts as lines, in the order they came: one per product and move, so two angles on one move share a line and two
  *  different moves on one product each get their own. */
-export function ProductLines({ d, hs }: { d: D; hs: Hypothesis[] }) {
+export function ProductLines({ d, hs, showTeams }: { d: D; hs: Hypothesis[]; showTeams?: boolean }) {
   const key = (h: Hypothesis) => `${productOf(h)}|${impactText(d.metric(h), h.expected.direction)}`;
-  return <>{[...new Set(hs.map(key))].map(k => <ProductLine key={k} d={d} hs={hs.filter(h => key(h) === k)} />)}</>;
+  return <>{[...new Set(hs.map(key))].map(k => <ProductLine key={k} d={d} hs={hs.filter(h => key(h) === k)} showTeams={showTeams} />)}</>;
 }
 
 /** Where it started, labelled; the reports that joined since in one line, the list on request. */

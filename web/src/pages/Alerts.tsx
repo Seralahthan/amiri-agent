@@ -22,7 +22,6 @@ const CHANGE: Record<string, string> = {
 const AGENT = "AMIRI Agent";
 const isAgent = (by: string | null | undefined) => (by ?? "").toLowerCase() === AGENT.toLowerCase();
 const changed = (a: AlertItem) => [...a.history].reverse().find(h => isAgent(h.by) && h.change !== "resolved")?.at ?? a.created_at;
-const lower = (s: string) => (/^[A-Z][a-z]/.test(s) ? s[0].toLowerCase() + s.slice(1) : s);
 const lead = (a: AlertItem) => a.effects.find(e => e.check?.alert === a.level) ?? a.effects[0];
 const capFirst = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 const what = (a: AlertItem) => { const e = lead(a); return capFirst(e ? impactText(e.metric_name, e.direction) : a.title); };
@@ -46,6 +45,7 @@ export function AlertsPage() {
   const [query, setQuery] = useState("");
   const [levelFilter, setLevelFilter] = useState("");
   const [selId, setSelId] = useState<string | null>(null);
+  const [mobOpen, setMobOpen] = useState(false);
   const hoverTimer = useRef<number>(0);
   useEffect(() => () => window.clearTimeout(hoverTimer.current), []);
   const [items, setItems] = useState<AlertItem[] | null>(null);
@@ -108,6 +108,7 @@ export function AlertsPage() {
   const products = cur ? [...new Set(cur.effects.map(e => e.product))] : [];
   const src = cur?.sources?.[0] ? sourceInfo(cur.sources[0]) : null;
   const article = cur ? ev?.findings.flatMap(f => f.evidence?.headlines ?? []).find(h => h.url && (!cur.top_finding || h.title === cur.top_finding)) : undefined;
+  const singleLevel = queue ? new Set(queue.map(a => a.level)).size <= 1 : false;
 
   return (
     <div className="eos-pad" style={{ paddingBottom: 0 }}>
@@ -117,13 +118,14 @@ export function AlertsPage() {
           <h1>
             {sum ? (sum.to_review ? <><span style={{ color: "var(--critical-ink)" }}>{count(sum.to_review, "alert")}</span> waiting across {count(sum.teams.length, "team")}</> : "All caught up") : "Alerts"}
           </h1>
+          <p className="sub">Reviewed individually — each alert keeps its own note and audit trail.</p>
         </div>
         <button className="btn btn--ghost btn--sm" type="button" onClick={load}><Icon name="refresh" />Refresh</button>
       </div>
 
       {err != null && <LoadError error={err} onRetry={load} what="the alerts" />}
 
-      <div className="eos-filterbar" style={{ marginBottom: 0 }}>
+      <div className={`eos-filterbar${mobOpen ? " eos-mob-hide" : ""}`} style={{ marginBottom: 0 }}>
         <SearchInput value={query} onChange={setQuery} ariaLabel="Search alerts" placeholder="Search alerts, products, teams, or events…" count={queue?.length} />
         <SelectMenu label="Filter by severity" value={levelFilter} onChange={setLevelFilter} options={[
           { value: "", label: "All severities" },
@@ -137,7 +139,7 @@ export function AlertsPage() {
             ...sum.all_teams.map(t => ({ value: t, label: `${t} (${nAt(show, t)})` })),
           ]} />
         )}
-        <FlowFilter toned label="Which alerts" value={show} onChange={setShow} all={{ key: "all", label: "All", count: nAt("all") }}
+        <FlowFilter toned label="Which alerts" value={show} onChange={s => { setShow(s); setMobOpen(false); }} all={{ key: "all", label: "All", count: nAt("all") }}
           steps={([["new", "To review", "queued"], ["acknowledged", "Acknowledged", "held"], ["resolved", "Resolved", "done"]] as const)
             .map(([key, label, state]) => ({ key, label, count: nAt(key), state }))} />
       </div>
@@ -145,15 +147,19 @@ export function AlertsPage() {
       {queue === null ? (err == null && <div className="mt12"><ListSkeleton rows={4} /></div>)
         : queue.length === 0 ? <div className="mt16"><Empty icon="check" title="No alerts in this view" actions={<Link className="btn" to="/events">View open events</Link>}>Adjust filters or check back after the next sweep.</Empty></div>
         : (
-          <div className="eos-split">
+          <div className={`eos-split eos-alerts-split${mobOpen ? " is-mob-detail" : ""}`}>
             {/* Left Queue */}
             <div className="eos-list" onMouseLeave={() => window.clearTimeout(hoverTimer.current)}>
               {queue.map(a => (
                 <button key={a.alert_id} type="button" className="eos-row" data-selected={cur?.alert_id === a.alert_id}
-                  onClick={() => { window.clearTimeout(hoverTimer.current); setSelId(a.alert_id); }}
+                  onClick={() => { window.clearTimeout(hoverTimer.current); setSelId(a.alert_id); setMobOpen(true); }}
                   onMouseEnter={() => { window.clearTimeout(hoverTimer.current); hoverTimer.current = window.setTimeout(() => setSelId(a.alert_id), 90); }}>
                   <div className="row" style={{ gap: 8 }}>
-                    <span className={`badge ${toneBadge(LEVEL_TONE[a.level])}`}>{LEVEL_LABEL[a.level]}</span>
+                    {singleLevel ? (
+                      <span className={`eos-lvl-dot tone-${LEVEL_TONE[a.level]}`} aria-label={LEVEL_LABEL[a.level]} title={LEVEL_LABEL[a.level]} />
+                    ) : (
+                      <span className={`badge ${toneBadge(LEVEL_TONE[a.level])}`}>{LEVEL_LABEL[a.level]}</span>
+                    )}
                     <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--ink-2)" }}>{a.owner}</span>
                     <span className="mono small muted" style={{ marginLeft: "auto" }}>{ago(changed(a), now)}</span>
                   </div>
@@ -166,12 +172,18 @@ export function AlertsPage() {
             {/* Right Live Inspector */}
             {cur && (
               <div className="eos-insp">
+                <button type="button" className="btn btn--ghost btn--sm eos-mob-back" onClick={() => setMobOpen(false)}>
+                  ← All alerts
+                </button>
                 <div className="eos-hd">
                   <div>
-                    <div className="label">{cur.owner} · <Link to={`/events/${cur.event_id}`}>{evName(cur)} ↗</Link></div>
+                    <div className="row wrap" style={{ gap: 6, marginBottom: 4 }}>
+                      <span className={`badge ${toneBadge(LEVEL_TONE[cur.level])}`}>{LEVEL_LABEL[cur.level]}</span>
+                      <span className="label">{cur.owner} · <Link to={`/events/${cur.event_id}`}>{evName(cur)} ↗</Link></span>
+                    </div>
                     <h2 style={{ fontSize: 21, marginTop: 2 }}>{what(cur)}</h2>
                   </div>
-                  <div className="row" style={{ gap: 8 }}>
+                  <div className="row eos-alert-actions" style={{ gap: 8 }}>
                     {cur.status === "acknowledged" && (
                       <span className="eos-ack-win">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-strong)" strokeWidth="2.2"><circle cx="12" cy="12" r="10" /><path d="m8 12.5 2.5 2.5 5.5-5.5" /></svg>
@@ -192,7 +204,7 @@ export function AlertsPage() {
 
                 {asking && (
                   <div className="eos-focal row wrap" style={{ gap: 8 }}>
-                    <input className="input" style={{ flex: 1, minWidth: 220 }} autoFocus value={note} onChange={e => setNote(e.target.value)}
+                    <input className="input" style={{ flex: 1, minWidth: 200 }} autoFocus value={note} onChange={e => setNote(e.target.value)}
                       placeholder={asking === "ack" ? "Optional note for your team…" : "Optional resolution note…"}
                       onKeyDown={e => { if (e.key === "Enter") act(cur, asking); if (e.key === "Escape") { setAsking(null); setNote(""); } }} />
                     <button className="btn btn--primary btn--sm" type="button" disabled={busy} onClick={() => act(cur, asking)}>
@@ -202,16 +214,42 @@ export function AlertsPage() {
                   </div>
                 )}
 
-                {/* ✦ Investigation Agent Why-It-Matters Strip */}
+                {/* ✦ Investigation Agent Assessment Table: AI Estimate vs. Your Data */}
                 <div className="eos-ai">
-                  <div className="eos-ai-hd"><span className="eos-spark" aria-hidden="true">✦</span>Investigation Agent · Why AMIRI expects this</div>
+                  <div className="eos-ai-hd">
+                    <span className="eos-spark" aria-hidden="true">✦</span>
+                    Investigation Agent · Expected impact (AI) vs. your bank data
+                  </div>
                   <div className="eos-ai-bd">
-                    <ul style={{ margin: "4px 0 0", paddingLeft: 18, display: "flex", flexDirection: "column", gap: 6 }}>
-                      {cur.effects.map(e => {
-                        const m = e.check ? checkMove(e.check.what) : null;
-                        return <li key={e.hypothesis_id}><b>{e.product}</b>: {lower(impactText(e.metric_name, e.direction))} — {lower(e.chain_label)}. <span className="muted">{sizeTiming(e.size, e.timing)}.</span>{m && <> Your data: <b>{m.move}</b> {m.against}.</>}</li>;
-                      })}
-                    </ul>
+                    <table className="eos-tbl eos-alert-tbl">
+                      <thead>
+                        <tr><th>Product</th><th>Expected (AI estimate)</th><th>Your data says</th></tr>
+                      </thead>
+                      <tbody>
+                        {cur.effects.map(e => {
+                          const m = e.check ? checkMove(e.check.what) : null;
+                          return (
+                            <tr key={e.hypothesis_id}>
+                              <td>
+                                <strong style={{ color: "var(--ink)" }}>{e.product}</strong>
+                                <div className="small muted">{e.chain_label}</div>
+                              </td>
+                              <td>
+                                <div style={{ color: "var(--ink)", fontWeight: 500 }}>{capFirst(impactText(e.metric_name, e.direction))}</div>
+                                <div className="small muted">{sizeTiming(e.size, e.timing)}</div>
+                              </td>
+                              <td>
+                                {m ? (
+                                  <><strong style={{ color: "var(--ink)" }}>{m.move}</strong> <span className="small muted">{m.against}</span></>
+                                ) : (
+                                  <span className="badge b-noeffect">{cur.basis === "data" ? "Waiting for data" : "Expectations only"}</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                   <div className="eos-ai-meta">
                     <span>Basis: <b>{cur.basis === "data" ? "Validated against bank data" : "Expected (early warning)"}</b></span>

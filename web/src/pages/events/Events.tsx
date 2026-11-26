@@ -2,7 +2,7 @@
 // whether anything was traced to a product, and the chosen one reads in full on the right: why it matters by product,
 // where it started, where it is, and the way into the event. The investigation's queue is one line, not stacked banners.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { ApiError } from "../../api/client";
 import { alertsApi } from "../../api/alerts";
 import { investigationApi, type EventDetail, type EventRow, type InvestigationStatus, type Run, type Theme } from "../../api/investigation";
@@ -161,10 +161,22 @@ export function EventsPage() {
   const { role } = useRole();
   const admin = role === "platform_admin";
   const now = useNow(30_000);
-  const [show, setShow] = useState<Show>("open");
-  const [sort, setSort] = useState<Sort>("newest");
-  const [query, setQuery] = useState("");
-  const [toneFilter, setToneFilter] = useState("");
+  const [sp, setSp] = useSearchParams();
+  const show = (sp.get("show") as Show) || "open";
+  const sort = (sp.get("sort") as Sort) || "newest";
+  const query = sp.get("q") ?? "";
+  const toneFilter = sp.get("tone") ?? "";
+  const setParam = (key: string, val: string, def = "") => {
+    setSp(prev => {
+      const next = new URLSearchParams(prev);
+      if (!val || val === def) next.delete(key); else next.set(key, val);
+      return next;
+    }, { replace: true });
+  };
+  const setShow = (v: Show) => setParam("show", v, "open");
+  const setSort = (v: Sort) => setParam("sort", v, "newest");
+  const setQuery = (v: string) => setParam("q", v, "");
+  const setToneFilter = (v: string) => setParam("tone", v, "");
   const [sim, setSim] = useState(false);  // simulated events (from a series' "Simulate a move") stay out of the live picture unless asked for
   const [sel, setSel] = useState<string | null>(null);    // the selected event (kept when moving to the detail pane)
   const [why, setWhy] = useState(false);                   // "Why it matters to you" opened: kept as the reader moves between events

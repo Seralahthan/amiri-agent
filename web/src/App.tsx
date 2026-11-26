@@ -47,7 +47,7 @@ const ADMIN_GROUPS: [string, string[]][] = [
 
 const NAV: Record<Role, [string, string, string][]> = {
   risk_manager: [
-    ["home", "Command", "/home"],
+    ["home", "Overview", "/home"],
     ["alert", "Alerts", "/alerts"],
     ["events", "Events & Findings", "/events"],
     ["radar", "Surveillance", "/monitors"],
@@ -107,7 +107,7 @@ function useTheme() {
 }
 
 const ROUTE_TITLES: [string, string][] = [
-  ["/home", "Command Overview"],
+  ["/home", "Overview"],
   ["/alerts", "Alerts"],
   ["/events", "Events"],
   ["/findings", "Findings"],
@@ -131,7 +131,7 @@ function useRouteA11y(): string {
     const fallback = ROUTE_TITLES.find(([p]) => pathname === p || pathname.startsWith(`${p}/`))?.[1] ?? "";
     if (fallback) document.title = `${fallback} · AMIRI Agent`;
     const name = () => {
-      if (pathname === "/home") return "Command Overview";
+      if (pathname === "/home") return "Overview";
       const h = document.querySelector("main h1")?.cloneNode(true) as HTMLElement | undefined;  // the heading without its badges
       h?.querySelectorAll(".badge").forEach(b => b.remove());
       const text = (h?.textContent ?? "").replace(/\s+/g, " ").trim();

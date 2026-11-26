@@ -11,7 +11,7 @@ import { Icon } from "../../components/Icon";
 import { Empty, LoadError, PageSkeleton, useRole } from "../../components/ui";
 import { dayTime } from "../../format";
 import { count, longWhen, onDay } from "../../plain";
-import { alertPhrase, derive, forYou, productLineCount, Progress, ProductLines, Report, SetAside, Story, TeamCard, type D } from "./eventParts";
+import { alertPhrase, CausalChain, derive, forYou, productLineCount, ProductLines, Report, SetAside, Story, TeamCard, type D } from "./eventParts";
 import "../../styles/event-detail.css";
 
 // keyed by the event id: moving to another event starts from loading, and the previous event's answers can't land on it
@@ -45,10 +45,10 @@ function EventLoader({ id }: { id: string }) {
 function EventPage({ d, retryAlerts }: { d: D; retryAlerts: () => void }) {
   const { role } = useRole();
   const [help, setHelp] = useState(false);
+  const [viewBy, setViewBy] = useState<"product" | "team">("product");
   const panel = useId();
   const { e } = d, n = e.hypotheses.length;
   const open = e.status === "open";
-  const impactToneColor = d.tone === "bad" ? "var(--critical-ink)" : d.tone === "good" ? "var(--accent)" : d.tone === "mixed" ? "var(--high-ink)" : "var(--ink)";
 
   return (
     <div className="eos-pad evd">
@@ -79,60 +79,51 @@ function EventPage({ d, retryAlerts }: { d: D; retryAlerts: () => void }) {
         {e.world !== "live" && <p className="evd-sim"><Icon name="info" />Simulated: this event came from a test move, not real news. It stays out of the live picture.</p>}
       </header>
 
-      <div className="eos-ledger" role="group" aria-label="Event blast radius">
-        <div className="eos-ledger-cell">
-          <span className="eos-l-step">01 · Possible Impacts</span>
-          <span className="eos-l-val" style={{ color: impactToneColor }}>{n}</span>
-          <span className="eos-l-meta">{forYou(d) ? forYou(d).replace(/^./, c => c.toUpperCase()) : "No product reach"}</span>
-        </div>
-        <div className="eos-ledger-cell">
-          <span className="eos-l-step">02 · Products Touched</span>
-          <span className="eos-l-val">{d.products.length}</span>
-          <span className="eos-l-meta">{d.products.length ? d.products.slice(0, 2).join(", ") + (d.products.length > 2 ? ` +${d.products.length - 2}` : "") : "None affected"}</span>
-        </div>
-        <Link to="/alerts" className="eos-ledger-cell">
-          <span className="eos-l-step">03 · Teams Alerted</span>
-          <span className="eos-l-val" style={{ color: d.teams.length ? "var(--accent)" : "var(--ink-3)" }}>{d.teams.length}</span>
-          <span className="eos-l-meta">{d.toReview ? `${d.toReview} waiting for review` : d.teams.length ? "All taken on" : "No alerts"}</span>
-        </Link>
-        <div className="eos-ledger-cell">
-          <span className="eos-l-step">04 · Data Checks</span>
-          <span className="eos-l-val" style={{ color: !d.validation ? "var(--ink-3)" : d.checked ? "var(--accent)" : "var(--ink)" }}>
-            {!d.validation ? "Off" : d.checked ? `${d.checked}/${n}` : "Pending"}
-          </span>
-          <span className="eos-l-meta">{!d.validation ? "Expectations only" : d.next ? `Next ${onDay(d.next)}` : "Checked against data"}</span>
-        </div>
-      </div>
-
-      <Progress d={d} />
+      <CausalChain d={d} />
 
       <div className="evd-grid">
         <section className="evd-main" aria-labelledby="evd-why">
           {n > 0 ? (
             <>
               <div className="evd-sec-bar">
-                <h2 id="evd-why">Why it matters to you{d.alertsFailed ? "" : ", by team"} <span className="eos-sec-cnt">{n}</span></h2>
-                <Link className="evd-all" to="/alerts">All alerts →</Link>
+                <h2 id="evd-why">Why it matters to you <span className="eos-sec-cnt">{productLineCount(d, e.hypotheses)}</span></h2>
+                <div className="row" style={{ gap: 10 }}>
+                  {!d.alertsFailed && d.teams.length > 0 && (
+                    <div className="evd-view-seg" role="group" aria-label="Group impacts by">
+                      <button type="button" aria-pressed={viewBy === "product"} onClick={() => setViewBy("product")}>By product</button>
+                      <button type="button" aria-pressed={viewBy === "team"} onClick={() => setViewBy("team")}>By team</button>
+                    </div>
+                  )}
+                  <Link className="evd-all" to="/alerts">All alerts →</Link>
+                </div>
               </div>
               {d.onePhrase && <p className="evd-once">{d.teams.length === 1 ? "The team has" : "Each team has"} {d.onePhrase}.</p>}
-              <div className="col" style={{ gap: 12 }}>
-                {d.teams.map(t => (
-                  <TeamCard
-                    key={t.owner}
-                    owner={t.owner}
-                    count={productLineCount(d, t.hs)}
-                    status={!d.onePhrase ? [...new Set(t.alerts.map(alertPhrase))].join("; ") : undefined}
-                    waiting={t.alerts.some(a => a.status === "new")}
-                  >
-                    <ProductLines d={d} hs={t.hs} />
-                  </TeamCard>
-                ))}
-                {d.free.length > 0 && (
-                  <TeamCard owner={d.alertsFailed ? "All impacts" : "No team alerted"} count={productLineCount(d, d.free)} noLink>
-                    <ProductLines d={d} hs={d.free} />
-                  </TeamCard>
-                )}
-              </div>
+              {viewBy === "product" || d.alertsFailed || d.teams.length === 0 ? (
+                <div className="card eos-sec-card">
+                  <div className="evd-team-bd">
+                    <ProductLines d={d} hs={e.hypotheses} showTeams={!d.alertsFailed} />
+                  </div>
+                </div>
+              ) : (
+                <div className="col" style={{ gap: 12 }}>
+                  {d.teams.map(t => (
+                    <TeamCard
+                      key={t.owner}
+                      owner={t.owner}
+                      count={productLineCount(d, t.hs)}
+                      status={!d.onePhrase ? [...new Set(t.alerts.map(alertPhrase))].join("; ") : undefined}
+                      waiting={t.alerts.some(a => a.status === "new")}
+                    >
+                      <ProductLines d={d} hs={t.hs} />
+                    </TeamCard>
+                  ))}
+                  {d.free.length > 0 && (
+                    <TeamCard owner={d.alertsFailed ? "All impacts" : "No team alerted"} count={productLineCount(d, d.free)} noLink>
+                      <ProductLines d={d} hs={d.free} />
+                    </TeamCard>
+                  )}
+                </div>
+              )}
               <p className="evd-sub">AMIRI Agent's assessment: expectations, not facts yet{d.validation ? "; each is checked against your own figures as they're published" : ""}.
                 {d.validation && d.same && d.checked > 0 && <span className="evd-shared">Your data so far, for all of them: <CheckPill c={{ ...d.checks[0], adverse: d.sharedAdverse }} /></span>}</p>
             </>

@@ -18,7 +18,8 @@ export function TelemetryStrip({ ov, now }: { ov: Overview | null; now: Date; do
     return () => { live = false; clearInterval(t); };
   }, []);
 
-  if (!ov || ov.first_run) return null;
+  if (!ov) return <div className="eos-sched eos-sched--placeholder" aria-hidden="true" />;
+  if (ov.first_run) return null;
 
   const moved = (ov.markets ?? []).filter(m => m.state === "moved");
   const stale = (ov.markets ?? []).filter(m => m.state === "stale");
