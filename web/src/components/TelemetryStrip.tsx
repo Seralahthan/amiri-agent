@@ -65,7 +65,7 @@ interface TickerEntry {
   meta?: string;
 }
 
-/** Option A: Live Signal Wire placed directly below the 4-metric ledger on Command Overview. Streams real captured events, market anomalies, and findings, pausing smoothly on hover. */
+/** Option A: Live Signal Wire placed directly below the 4-metric ledger on Command Overview. Cycles through captured events, market anomalies, and findings in wrap-around batches without clipping, pausing on hover/focus. */
 export function LiveWire({ ov, now, down = false }: { ov: Overview | null; now: Date; down?: boolean }) {
   const entries = useMemo<TickerEntry[]>(() => {
     if (!ov || ov.first_run) return [];
@@ -108,19 +108,51 @@ export function LiveWire({ ov, now, down = false }: { ov: Overview | null; now: 
     return list;
   }, [ov, now]);
 
-  if (!ov || ov.first_run || entries.length === 0) return null;
+  const [slots, setSlots] = useState(() => (typeof window === "undefined" ? 3 : window.innerWidth <= 680 ? 1 : window.innerWidth <= 1120 ? 2 : 3));
+  const [offset, setOffset] = useState(0);
+  const [paused, setPaused] = useState(false);
+
+  useEffect(() => {
+    const update = () => setSlots(window.innerWidth <= 680 ? 1 : window.innerWidth <= 1120 ? 2 : 3);
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+
+  const total = entries.length;
+  const canFlip = total > slots;
+
+  useEffect(() => {
+    if (!canFlip || paused) return;
+    if (typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const t = window.setInterval(() => setOffset(o => (o + slots) % total), 6000);
+    return () => window.clearInterval(t);
+  }, [canFlip, paused, slots, total]);
+
+  if (!ov || ov.first_run || total === 0) return null;
   const tick = ov.services?.tick;
   const liveTone = down || !tick?.ok ? "warn" : "live";
 
-  const shown = entries.slice(0, 3);
+  const count = Math.min(slots, total);
+  const shown = Array.from({ length: count }, (_, i) => entries[(offset + i) % total]);
+  const step = (dir: -1 | 1) => setOffset(o => ((o + dir * slots) % total + total) % total);
+  const startIdx = (offset % total) + 1;
+  const endIdx = ((offset + count - 1) % total) + 1;
 
   return (
-    <div className="eos-ticker eos-wire" role="region" aria-label="Live captured risk and news feed">
+    <div
+      className="eos-ticker eos-wire"
+      role="region"
+      aria-label="Live captured risk and news feed"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onFocus={() => setPaused(true)}
+      onBlur={() => setPaused(false)}
+    >
       <Link to="/findings" className="eos-tick-badge" title="View all captured findings">
         <span className={`eos-agent-dot ${liveTone}`} aria-hidden="true" />
         <span>LIVE WIRE</span>
       </Link>
-      <div className="eos-tick-strip">
+      <div className="eos-tick-strip" key={offset}>
         {shown.map(item => (
           <Link key={item.key} className="eos-tick-item" to={item.to} title={item.text}>
             <span className={`eos-tick-tag ${item.tone ?? "info"}`}>{item.tag}</span>
@@ -129,6 +161,13 @@ export function LiveWire({ ov, now, down = false }: { ov: Overview | null; now: 
           </Link>
         ))}
       </div>
+      {canFlip && (
+        <div className="eos-tick-pager">
+          <span className="eos-tick-pos" aria-live="polite">{count === 1 ? `${startIdx}/${total}` : `${startIdx}–${endIdx}/${total}`}</span>
+          <button type="button" className="eos-tick-nav" aria-label="Previous signals" onClick={() => step(-1)}>‹</button>
+          <button type="button" className="eos-tick-nav" aria-label="Next signals" onClick={() => step(1)}>›</button>
+        </div>
+      )}
     </div>
   );
 }

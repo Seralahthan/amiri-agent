@@ -66,6 +66,7 @@ export function AlertsPage() {
   const clearEventFilter = () => setParam("event", "", "");
 
   const [mobOpen, setMobOpen] = useState(false);
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const hoverTimer = useRef<number>(0);
   useEffect(() => () => window.clearTimeout(hoverTimer.current), []);
   const [items, setItems] = useState<AlertItem[] | null>(null);
@@ -166,6 +167,15 @@ export function AlertsPage() {
   const src = cur?.sources?.[0] ? sourceInfo(cur.sources[0]) : null;
   const article = cur ? ev?.findings.flatMap(f => f.evidence?.headlines ?? []).find(h => h.url && (!cur.top_finding || h.title === cur.top_finding)) : undefined;
   const singleLevel = queue ? new Set(queue.map(a => a.level)).size <= 1 : false;
+  const activeFilterCount = (show !== "new" ? 1 : 0) + (team ? 1 : 0) + (levelFilter ? 1 : 0) + (query.trim() ? 1 : 0) + (eventFilter ? 1 : 0);
+  const statusLabels: Record<Show, string> = { all: "All", new: "To review", acknowledged: "Acknowledged", resolved: "Resolved" };
+  const resetFilters = () => {
+    setSp(prev => {
+      const next = new URLSearchParams(prev);
+      ["status", "team", "level", "q", "event"].forEach(k => next.delete(k));
+      return next;
+    }, { replace: true });
+  };
 
   return (
     <div className="eos-pad" style={{ paddingBottom: 24 }}>
@@ -182,7 +192,30 @@ export function AlertsPage() {
 
       {err != null && <LoadError error={err} onRetry={load} what="the alerts" />}
 
-      <div className={`eos-filterbar${mobOpen ? " eos-mob-hide" : ""}`} style={{ marginBottom: 0 }}>
+      {/* Mobile compact filter bar (<=900px): keeps 4 alerts visible above the fold */}
+      {!mobOpen && (
+        <div className="eos-mob-fbar">
+          <div className="eos-mob-fchips">
+            <span className="chip" style={{ fontWeight: 600 }}>{statusLabels[show]} ({nAt(show) ?? 0})</span>
+            {team && <span className="chip">{team}</span>}
+            {levelFilter && <span className="chip">{LEVEL_LABEL[levelFilter as keyof typeof LEVEL_LABEL] ?? levelFilter}</span>}
+            {eventFilter && (
+              <span className="chip" style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--accent-soft)", color: "var(--accent-ink)", borderColor: "var(--accent-line)", fontWeight: 600 }}>
+                <span>{eventFilterLabel}</span>
+                <button type="button" onClick={clearEventFilter} aria-label="Clear event filter" style={{ border: 0, background: "transparent", color: "inherit", cursor: "pointer", padding: "0 2px", fontSize: 15, lineHeight: 1 }}>×</button>
+              </span>
+            )}
+          </div>
+          <button type="button" className="btn eos-mob-fbtn" aria-expanded={filterSheetOpen} aria-controls="alerts-filter-sheet" onClick={() => setFilterSheetOpen(true)}>
+            <Icon name="search" />
+            <span>Filters</span>
+            {activeFilterCount > 0 && <span className="eos-mob-fcnt">{activeFilterCount}</span>}
+          </button>
+        </div>
+      )}
+
+      {/* Desktop inline filter bar */}
+      <div className={`eos-filterbar eos-alerts-fbar-desk${mobOpen ? " eos-mob-hide" : ""}`} style={{ marginBottom: 0 }}>
         <SearchInput value={query} onChange={setQuery} ariaLabel="Search alerts" placeholder="Search alerts, products, teams, or events…" count={queue?.length} />
         <SelectMenu label="Filter by severity" value={levelFilter} onChange={setLevelFilter} options={[
           { value: "", label: "All severities" },
@@ -207,6 +240,57 @@ export function AlertsPage() {
           </span>
         )}
       </div>
+
+      {/* Mobile slide-up Filter Sheet (>=44x44px tap targets) */}
+      {filterSheetOpen && (
+        <div className="eos-sheet-bg" role="dialog" aria-modal="true" aria-label="Filter alerts" id="alerts-filter-sheet"
+          onClick={e => { if (e.target === e.currentTarget) setFilterSheetOpen(false); }}>
+          <div className="eos-sheet">
+            <div className="eos-sheet-hd">
+              <strong>Filter Alerts</strong>
+              <div className="row" style={{ gap: 8 }}>
+                {activeFilterCount > 0 && (
+                  <button type="button" className="btn btn--ghost eos-sheet-act" onClick={resetFilters}>Reset</button>
+                )}
+                <button type="button" className="btn btn--primary eos-sheet-act" onClick={() => setFilterSheetOpen(false)}>Done</button>
+              </div>
+            </div>
+            <div className="eos-sheet-sec">
+              <span className="label">Search</span>
+              <SearchInput value={query} onChange={setQuery} ariaLabel="Search alerts" placeholder="Search alerts, products, teams, or events…" count={queue?.length} />
+            </div>
+            <div className="eos-sheet-sec">
+              <span className="label">Status</span>
+              <div className="eos-sheet-grid">
+                {(["all", "new", "acknowledged", "resolved"] as const).map(k => (
+                  <button key={k} type="button" className={`eos-sheet-pill${show === k ? " is-active" : ""}`}
+                    aria-pressed={show === k} onClick={() => { setShow(k); setMobOpen(false); }}>
+                    <span>{statusLabels[k]}</span>
+                    <span className="mono">{nAt(k) ?? 0}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="eos-sheet-sec">
+              <span className="label">Severity &amp; Team</span>
+              <div className="eos-sheet-grid">
+                <SelectMenu label="Filter by severity" value={levelFilter} onChange={setLevelFilter} options={[
+                  { value: "", label: "All severities" },
+                  { value: "adverse", label: "Confirmed" },
+                  { value: "developing", label: "Showing early signs" },
+                  { value: "warning", label: "Early warning" },
+                ]} />
+                {sum && sum.all_teams.length > 1 && (
+                  <SelectMenu label="Filter by team" value={team} onChange={setTeam} options={[
+                    { value: "", label: `All teams (${sum.all_teams.length})` },
+                    ...sum.all_teams.map(t => ({ value: t, label: `${t} (${nAt(show, t)})` })),
+                  ]} />
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {queue === null ? (err == null && <div className="mt12"><ListSkeleton rows={4} /></div>)
         : queue.length === 0 ? <div className="mt16"><Empty icon="check" title="No alerts in this view" actions={<Link className="btn" to="/events">View open events</Link>}>Adjust filters or check back after the next sweep.</Empty></div>
