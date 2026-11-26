@@ -1201,6 +1201,14 @@ details.eos-fold[open] > summary::before {
   }
   .eos-mobnav a[aria-current="page"] { color: var(--accent-ink); font-weight: 600; }
   .eos-mobnav svg { width: 18px; height: 18px; }
+  .eos-mobnav-ico { position: relative; display: inline-flex; align-items: center; justify-content: center; }
+  .eos-mobnav-badge {
+    position: absolute; top: -5px; right: -11px;
+    min-width: 17px; height: 17px; padding: 0 4px; border-radius: 999px;
+    background: var(--critical); color: #fff; border: 1.5px solid var(--paper);
+    font-size: 10px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
 }
 @media (max-width: 640px) {
   /* Prevent Institution & Event Detail collapsible section header buttons from overlapping headings */

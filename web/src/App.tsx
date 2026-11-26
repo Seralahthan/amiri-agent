@@ -374,7 +374,13 @@ function Frame({ inst }: { inst: Installation }) {
       </div>
       <nav className="eos-mobnav" aria-label="Quick navigation">
         <Link to="/home" aria-current={pathname === "/home" ? "page" : undefined}><Icon name="home" /><span>Home</span></Link>
-        <Link to="/alerts" aria-current={pathname.startsWith("/alerts") ? "page" : undefined}><Icon name="alert" /><span>Alerts</span></Link>
+        <Link to="/alerts" aria-current={pathname.startsWith("/alerts") ? "page" : undefined}>
+          <span className="eos-mobnav-ico">
+            <Icon name="alert" />
+            {alerts?.to_review ? <span className={`eos-mobnav-badge${alerts.by_level.warning ? " hot" : ""}`}>{alerts.to_review > 99 ? "99+" : alerts.to_review}</span> : null}
+          </span>
+          <span>Alerts</span>
+        </Link>
         <Link to="/events" aria-current={pathname.startsWith("/events") || pathname.startsWith("/findings") ? "page" : undefined}><Icon name="events" /><span>Events</span></Link>
         <Link to="/monitors" aria-current={pathname.startsWith("/monitors") || pathname.startsWith("/radar") || pathname.startsWith("/series") ? "page" : undefined}><Icon name="monitor" /><span>Watch</span></Link>
         <Link to="/institution" aria-current={pathname.startsWith("/institution") ? "page" : undefined}><Icon name="bank" /><span>Bank</span></Link>
