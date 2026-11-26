@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { Link, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { Icon } from "./components/Icon";
 import { Empty, isDown, PageHead, PageSkeleton, useNow, useRole, type Role } from "./components/ui";
 import { api, ME } from "./api/client";
@@ -239,6 +239,7 @@ function Frame({ inst }: { inst: Installation }) {
   const said = useRouteA11y();
   const [menu, setMenu] = useState(false);
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   useEffect(() => setMenu(false), [pathname]);
   useEffect(() => {
     if (!menu) return;
@@ -335,7 +336,7 @@ function Frame({ inst }: { inst: Installation }) {
               </span>
             </div>
             <div className="eos-role-seg" role="group" aria-label="View as">
-              <button type="button" aria-pressed={role === "risk_manager"} onClick={() => setRole("risk_manager")}>Risk Manager</button>
+              <button type="button" aria-pressed={role === "risk_manager"} onClick={() => { setRole("risk_manager"); if (pathname.startsWith("/admin/")) navigate("/home"); }}>Risk Manager</button>
               <button type="button" aria-pressed={role === "platform_admin"} onClick={() => setRole("platform_admin")}>Platform Admin</button>
             </div>
           </div>

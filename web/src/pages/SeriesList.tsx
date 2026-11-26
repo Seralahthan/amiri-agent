@@ -264,7 +264,11 @@ export function SeriesList() {
                       onMouseEnter={() => { window.clearTimeout(hoverTimer.current); hoverTimer.current = window.setTimeout(() => setSelId(s.series_id), 90); }}>
                       <div className="row" style={{ gap: 8 }}>
                         <strong style={{ color: "var(--ink)" }}>{s.name}</strong>
-                        {z !== null ? <StatusPill tone={unusual ? "red" : "green"}>{zx(z)} σ</StatusPill> : <StateBadge state={s.state} />}
+                        {z !== null ? (
+                          <StatusPill tone={unusual ? (z >= s.detector.z_threshold ? "red" : "amber") : "green"}>
+                            {s.state === "moved" && z < s.detector.z_threshold ? `${zx(z)} σ · cooldown` : `${zx(z)} σ`}
+                          </StatusPill>
+                        ) : <StateBadge state={s.state} />}
                         <span className="mono" style={{ marginLeft: "auto", fontWeight: 700, color: "var(--ink)" }}>{price(l?.close)}</span>
                       </div>
                       <div className="row small muted" style={{ justifyContent: "space-between" }}>
@@ -300,7 +304,9 @@ export function SeriesList() {
                         </span>
                       ) : <StateBadge state={cur.state} />}
                       <span className="small muted">
-                        {cur.last_finding ? `flagged ${when(cur.last_finding.at, now)}` : `updated ${ago(cur.fetch.last_at, now)}`}
+                        {cur.last_finding
+                          ? `${cur.state === "moved" && maxZ !== null && maxZ < cur.detector.z_threshold ? "in cooldown · " : ""}flagged ${when(cur.last_finding.at, now)}`
+                          : `updated ${ago(cur.fetch.last_at, now)}`}
                       </span>
                     </div>
                     <div className="row" style={{ gap: 6 }}>

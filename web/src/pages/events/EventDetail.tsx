@@ -11,7 +11,7 @@ import { Icon } from "../../components/Icon";
 import { Empty, LoadError, PageSkeleton, useRole } from "../../components/ui";
 import { dayTime } from "../../format";
 import { count, longWhen, onDay } from "../../plain";
-import { alertPhrase, derive, forYou, Progress, ProductLines, Report, SetAside, Story, TeamCard, type D } from "./eventParts";
+import { alertPhrase, derive, forYou, productLineCount, Progress, ProductLines, Report, SetAside, Story, TeamCard, type D } from "./eventParts";
 import "../../styles/event-detail.css";
 
 // keyed by the event id: moving to another event starts from loading, and the previous event's answers can't land on it
@@ -120,7 +120,7 @@ function EventPage({ d, retryAlerts }: { d: D; retryAlerts: () => void }) {
                   <TeamCard
                     key={t.owner}
                     owner={t.owner}
-                    count={t.hs.length}
+                    count={productLineCount(d, t.hs)}
                     status={!d.onePhrase ? [...new Set(t.alerts.map(alertPhrase))].join("; ") : undefined}
                     waiting={t.alerts.some(a => a.status === "new")}
                   >
@@ -128,7 +128,7 @@ function EventPage({ d, retryAlerts }: { d: D; retryAlerts: () => void }) {
                   </TeamCard>
                 ))}
                 {d.free.length > 0 && (
-                  <TeamCard owner={d.alertsFailed ? "All impacts" : "No team alerted"} count={d.free.length} noLink>
+                  <TeamCard owner={d.alertsFailed ? "All impacts" : "No team alerted"} count={productLineCount(d, d.free)} noLink>
                     <ProductLines d={d} hs={d.free} />
                   </TeamCard>
                 )}

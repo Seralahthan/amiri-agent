@@ -27,7 +27,7 @@ export function TelemetryStrip({ ov, now }: { ov: Overview | null; now: Date; do
     <div className="eos-sched" role="region" aria-label="Operational schedules">
       <Link className="eos-sched-item" to="/monitors">
         <Icon name="monitor" />
-        <b>Monitors ({ov.counts.monitors_live} live)</b>
+        <b>Monitors ({ov.counts.monitors_live})</b>
         {monSt?.next_check_at && <span>· next <span className="mono">{when(monSt.next_check_at, now)}</span></span>}
         {ov.counts.monitors_waiting_approval > 0 && (
           <span style={{ color: "var(--info-ink)", fontWeight: 600 }}>· {ov.counts.monitors_waiting_approval} approval</span>
@@ -43,7 +43,7 @@ export function TelemetryStrip({ ov, now }: { ov: Overview | null; now: Date; do
       <span className="eos-sched-div" aria-hidden="true" />
       <Link className="eos-sched-item" to="/series">
         <Icon name="series" />
-        <b>Market Series ({ov.counts.series_watched})</b>
+        <b>Series ({ov.counts.series_watched})</b>
         {moved.length > 0 && (
           <span style={{ color: "var(--high-ink)", fontWeight: 600 }}>· ◆ {moved[0].name} unusual</span>
         )}

@@ -176,6 +176,11 @@ function ProductLine({ d, hs }: { d: D; hs: Hypothesis[] }) {
     {hs.map(h => <Detail key={h.hypothesis_id} d={d} h={h} />)}
   </details>;
 }
+/** Count of deduplicated product-move lines (matches rendered ProductLines rows). */
+export function productLineCount(d: D, hs: Hypothesis[]): number {
+  return new Set(hs.map(h => `${productOf(h)}|${impactText(d.metric(h), h.expected.direction)}`)).size;
+}
+
 /** Impacts as lines, in the order they came: one per product and move, so two angles on one move share a line and two
  *  different moves on one product each get their own. */
 export function ProductLines({ d, hs }: { d: D; hs: Hypothesis[] }) {

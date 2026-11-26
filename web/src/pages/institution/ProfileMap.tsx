@@ -372,7 +372,7 @@ export function ProfileMap({ profile, height = 440, events = [], extraPlaces = {
         <span><Key tone="good" /> good for you</span>
         <span><Key tone="mixed" /> mixed</span>
         <span><Key tone="neutral" /> neutral</span>
-        <span><span className="statusdot" style={{ background: "var(--map-home-fill)", outline: "1px solid var(--map-home)" }} /> where you operate</span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span className="statusdot" style={{ background: "var(--map-home-fill)", outline: "1px solid var(--map-home)" }} />where you operate</span>
         {layers?.includes("risks") !== false && <span><svg width={14} height={14} aria-hidden="true" style={{ verticalAlign: -2 }}><circle cx={7} cy={7} r={5.5} fill="var(--critical-soft)" stroke="var(--critical)" strokeDasharray="3 2" /></svg> risk areas in your profile</span>}
         {layers?.includes("flows") !== false && <span><svg width={16} height={10} aria-hidden="true"><path d="M1 8Q8 0 15 8" fill="none" stroke="var(--accent)" strokeWidth={2} /></svg> money flows, moving the way the money goes</span>}
         {reached.size > 0 && <span><svg width={16} height={10} aria-hidden="true"><path d="M1 8Q8 0 15 8" fill="none" stroke="var(--critical)" strokeWidth={3} /></svg> flows an open event reaches</span>}

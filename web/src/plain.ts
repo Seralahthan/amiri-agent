@@ -116,8 +116,8 @@ export function impactText(metricName: string, direction: string): string {
   const verb = direction === "rise" ? "may rise" : direction === "fall" ? "may fall" : `may ${words(direction)}`;
   return `${cap(metricName)} ${verb}`;
 }
-/** A metric key as words, when the spec's name isn't to hand: "facility_utilization" → "Facility utilization". */
-export const metricWords = (key: string) => cap(words(key));
+/** A metric key as words, when the spec's name isn't to hand: "facility_utilization" → "Facility utilization", "td_non_renewal_outflow" → "Term-deposit non-renewal outflow". */
+export const metricWords = (key: string) => cap(words(key).replace(/\btd\b/gi, "term-deposit").replace(/\bnon renewal\b/gi, "non-renewal"));
 /** The metric's name at the front of a check's sentence ("Instalment collection rate (vehicle type: three wheeler): …"),
  *  and the rest. A colon inside the brackets isn't the split. */
 export function splitCheckText(what: string): [string, string] {

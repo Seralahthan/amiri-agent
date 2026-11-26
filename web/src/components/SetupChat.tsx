@@ -475,7 +475,13 @@ export function WithChat({ institutionId, onTrack, onApplied, at, children }: {
   institutionId: string | null; onTrack?: (t: TrackDef) => void; onApplied?: (p: Proposal) => void; at?: ChatAt; children: ReactNode;
 }) {
   const [open, setOpen] = useState(() => { try { return localStorage.getItem("amiri.setupChat") !== "closed"; } catch { return true; } });
-  const setShown = (v: boolean) => { setOpen(v); try { localStorage.setItem("amiri.setupChat", v ? "open" : "closed"); } catch { /* */ } };
+  const asideRef = useRef<HTMLElement>(null);
+  const scrollToChat = () => {
+    if (window.matchMedia("(max-width: 1020px)").matches) {
+      requestAnimationFrame(() => asideRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    }
+  };
+  const setShown = (v: boolean) => { setOpen(v); try { localStorage.setItem("amiri.setupChat", v ? "open" : "closed"); } catch { /* */ } if (v) scrollToChat(); };
   const toggle = () => setShown(!open);
   // "Ask the Setup agent instead" (Edit details, the step's explainer): open the panel and put the cursor in it
   const [askKey, setAskKey] = useState(0);
@@ -490,7 +496,7 @@ export function WithChat({ institutionId, onTrack, onApplied, at, children }: {
       <div style={{ minWidth: 0 }}>
         {children}
       </div>
-      {open && <aside className="chatside eos-agent-float" aria-label="Setup agent"><SetupChat key={institutionId ?? "new"} institutionId={institutionId} onTrack={onTrack} onApplied={onApplied} at={at} askKey={askKey} /></aside>}
+      {open && <aside ref={asideRef} className="chatside eos-agent-float" aria-label="Setup agent"><SetupChat key={institutionId ?? "new"} institutionId={institutionId} onTrack={onTrack} onApplied={onApplied} at={at} askKey={askKey} /></aside>}
     </div>
     </ChatToggleCtx.Provider>
   );

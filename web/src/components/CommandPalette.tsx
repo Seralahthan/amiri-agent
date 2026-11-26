@@ -52,7 +52,12 @@ export function CommandPalette({ open, onClose, ov, projector, onToggleProjector
     setQ("");
     setHi(0);
     setTimeout(() => inputRef.current?.focus(), 0);
-  }, [open]);
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { e.preventDefault(); onClose(); }
+    };
+    window.addEventListener("keydown", onEsc);
+    return () => window.removeEventListener("keydown", onEsc);
+  }, [open, onClose]);
 
   const items = useMemo<CmdItem[]>(() => {
     const out: CmdItem[] = [];
@@ -60,7 +65,7 @@ export function CommandPalette({ open, onClose, ov, projector, onToggleProjector
       ov.events.forEach(e => out.push({
         id: `ev-${e.event_id}`,
         label: eventTitle(e),
-        sub: `${e.effects} impacts · ${e.tone}`,
+        sub: `${e.effects} ${e.effects === 1 ? "impact" : "impacts"} · ${e.tone}`,
         cat: "EVENT",
         to: `/events/${e.event_id}`,
       }));
