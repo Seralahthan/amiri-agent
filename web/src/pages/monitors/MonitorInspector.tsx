@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { ApiError } from "../../api/client";
 import { monitorsApi, type Monitor, type MonitorFinding, type MonitorRow } from "../../api/monitors";
 import { Icon } from "../../components/Icon";
-import { DeadlineBadge } from "../../components/blocks";
+import { DeadlineBadge, Fold } from "../../components/blocks";
 import { InlineSkeleton, useNow, useToast } from "../../components/ui";
 import { ago, dayTime } from "../../format";
 import { everyText, undated } from "../../plain";
@@ -116,20 +116,18 @@ export function MonitorInspector({ row, findings, onChange }: { row: MonitorRow;
           </div>
         )}
 
-        <div>
+        <div className="col" style={{ gap: 8 }}>
           {ex && (ex.match.length > 0 || ex.not_match.length > 0) && (
-            <details className="eos-fold" open>
-              <summary>Example headlines · {ex.match.length} match, {ex.not_match.length} don't</summary>
-              <div className="eos-fold-bd col" style={{ gap: 6 }}>
+            <Fold summary={`Example headlines · ${ex.match.length} match, ${ex.not_match.length} don't`} defaultOpen>
+              <div className="col" style={{ gap: 6 }}>
                 {ex.match.map((m, i) => <div key={`m-${i}`}><span className="badge b-ok" style={{ marginRight: 6 }}>Match</span>{m.headline}</div>)}
                 {ex.not_match.map((n, i) => <div key={`n-${i}`}><span className="badge b-noeffect" style={{ marginRight: 6 }}>Ignore</span><span className="muted">{n}</span></div>)}
               </div>
-            </details>
+            </Fold>
           )}
 
-          <details className="eos-fold">
-            <summary>Recent findings ({row.findings_30d} in 30d) {row.last_check ? `· checked ${ago(row.last_check.at, now)}` : ""}</summary>
-            <div className="eos-fold-bd col" style={{ gap: 6 }}>
+          <Fold summary={`Recent findings (${row.findings_30d} in 30d)${row.last_check ? ` · checked ${ago(row.last_check.at, now)}` : ""}`}>
+            <div className="col" style={{ gap: 6 }}>
               {findings && findings.length > 0 ? findings.slice(0, 5).map(f => {
                 const h = f.evidence?.headlines?.[0];
                 return <div key={f.finding_id}>
@@ -138,18 +136,17 @@ export function MonitorInspector({ row, findings, onChange }: { row: MonitorRow;
                 </div>;
               }) : <span className="muted">No recent findings in the last 30 days.</span>}
             </div>
-          </details>
+          </Fold>
 
-          <details className="eos-fold">
-            <summary>Versions · {full.versions.length}</summary>
-            <div className="eos-fold-bd col" style={{ gap: 4 }}>
+          <Fold summary={`Versions · ${full.versions.length}`}>
+            <div className="col" style={{ gap: 4 }}>
               {full.versions.map(v => (
                 <div key={v.version}>
                   <b>v{v.version}</b> · {v.status}{v.approved_by ? ` · approved by ${v.approved_by}` : ""}{v.note ? ` — “${v.note}”` : ""}
                 </div>
               ))}
             </div>
-          </details>
+          </Fold>
         </div>
       </>}
     </div>

@@ -257,7 +257,11 @@ export function SeriesList() {
                 {g.rows.map(s => {
                   const l = s.latest;
                   const z = l?.max_z != null ? Math.abs(l.max_z) : null;
-                  const unusual = s.state === "moved" || (z !== null && z >= s.detector.z_threshold);
+                  const thr = s.detector.z_threshold;
+                  const unusual = s.state === "moved" || (z !== null && z >= thr);
+                  const miniMax = Math.max(thr * 1.4, z ?? 0, 1);
+                  const miniFill = z !== null ? Math.min(100, (z / miniMax) * 100) : 0;
+                  const miniTick = Math.min(90, (thr / miniMax) * 100);
                   return (
                     <button key={s.series_id} type="button" className="eos-row" data-selected={cur.series_id === s.series_id}
                       onClick={() => { window.clearTimeout(hoverTimer.current); setSelId(s.series_id); }}
@@ -265,12 +269,21 @@ export function SeriesList() {
                       <div className="row" style={{ gap: 8 }}>
                         <strong style={{ color: "var(--ink)" }}>{s.name}</strong>
                         {z !== null ? (
-                          <StatusPill tone={unusual ? (z >= s.detector.z_threshold ? "red" : "amber") : "green"}>
-                            {s.state === "moved" && z < s.detector.z_threshold ? `${zx(z)} σ · cooldown` : `${zx(z)} σ`}
+                          <StatusPill tone={unusual ? (z >= thr ? "red" : "amber") : "green"}>
+                            {s.state === "moved" && z < thr ? `${zx(z)} usual · cooldown` : `${zx(z)} usual`}
                           </StatusPill>
                         ) : <StateBadge state={s.state} />}
                         <span className="mono" style={{ marginLeft: "auto", fontWeight: 700, color: "var(--ink)" }}>{price(l?.close)}</span>
                       </div>
+                      {z !== null && (
+                        <div className="eos-ms-mini" title={`${zx(z)} a normal move (threshold ${thr}×)`}>
+                          <div className="eos-ms-ltrack eos-ms-ltrack--mini">
+                            <div className={`eos-ms-lfill${z >= thr ? " hot" : ""}`} style={{ width: `${miniFill}%` }} />
+                            <span className="eos-ms-ltick" style={{ left: `${miniTick}%` }} aria-hidden="true" />
+                          </div>
+                          <span className="eos-ms-mini-lbl">vs. {thr}× usual</span>
+                        </div>
+                      )}
                       <div className="row small muted" style={{ justifyContent: "space-between" }}>
                         <span>{s.instrument?.type ?? s.symbol} · {ago(s.fetch.last_at, now)}</span>
                         <span className="mono">{pctFine(l?.change_1d_pct)}</span>
