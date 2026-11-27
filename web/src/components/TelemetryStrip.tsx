@@ -6,6 +6,13 @@ import { Icon } from "./Icon";
 import { ago, when } from "../format";
 import { eventTitle, undated } from "../plain";
 
+/** Compact market label for the narrow topbar (e.g. "US dollar to UAE dirham" -> "USD/AED", "Gold" -> "Gold"). */
+function shortMarketLabel(m: { series_id: string; name: string }): string {
+  if (m.name.length <= 12) return m.name;
+  if (/^[a-z]{3}_[a-z]{3}$/i.test(m.series_id)) return m.series_id.toUpperCase().replace("_", "/");
+  return `${m.name.slice(0, 12).trim()}…`;
+}
+
 /** Stationary topbar operational schedule strip: lets Risk Managers & Platform Admins see last/next runs at one glance beside ⌘K search. */
 export function TelemetryStrip({ ov, now }: { ov: Overview | null; now: Date; down?: boolean }) {
   const [monSt, setMonSt] = useState<MonitorsStatus | null>(null);
@@ -38,15 +45,17 @@ export function TelemetryStrip({ ov, now }: { ov: Overview | null; now: Date; do
       <Link className="eos-sched-item" to="/radar">
         <Icon name="radar" />
         <b>Radar</b>
-        {ov.radar.last_run_at && <span className="eos-sched-sub">· last <span className="mono">{ago(ov.radar.last_run_at, now)}</span></span>}
+        {ov.radar.last_run_at && <span className="eos-sched-sub eos-sched-last">· last <span className="mono">{ago(ov.radar.last_run_at, now)}</span></span>}
         {ov.radar.next_run_at && <span className="eos-sched-sub">· next <span className="mono">{when(ov.radar.next_run_at, now)}</span></span>}
       </Link>
       <span className="eos-sched-div" aria-hidden="true" />
-      <Link className="eos-sched-item" to="/series">
+      <Link className="eos-sched-item" to="/series" title={moved.length > 0 ? moved.map(m => `${m.name} unusual`).join(", ") : undefined}>
         <Icon name="series" />
         <b>Series ({ov.counts.series_watched})</b>
         {moved.length > 0 && (
-          <span style={{ color: "var(--high-ink)", fontWeight: 600 }}>· ◆ {moved[0].name} unusual</span>
+          <span style={{ color: "var(--high-ink)", fontWeight: 600 }}>
+            · ◆ {shortMarketLabel(moved[0])}{moved.length > 1 ? ` +${moved.length - 1}` : ""} unusual
+          </span>
         )}
         {moved.length === 0 && stale.length > 0 && (
           <span style={{ color: "var(--high-ink)" }}>· {stale.length} late</span>

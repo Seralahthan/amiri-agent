@@ -74,7 +74,7 @@
 .rd-heads li { display:flex; flex-direction:column; padding:8px 0; border-top:1px solid var(--hairline); }
 .rd-heads span { font-size:14px; color:var(--ink-3); }
 
-@media (max-width:1000px) {
+@media (max-width:1100px) {
   .rd { height:auto; min-height:100%; }  /* stacked: the page grows and scrolls */
   .rd-split { flex:none; grid-template-columns:minmax(0, 1fr); gap:16px; min-height:0; }
   .rd-index { border-right:0; border-bottom:1px solid var(--hairline); min-width:0; max-width:100%; }

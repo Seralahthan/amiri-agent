@@ -299,7 +299,7 @@ function Frame({ inst }: { inst: Installation }) {
               title={`Institution local time (${inst.time_zone})`}
               aria-label={`${clk.date}, ${clk.time} ${clk.zone}`}
             >
-              <span>{clk.date}</span>
+              <span className="eos-clock-date">{clk.date}</span>
               <span className="eos-clock-dot" aria-hidden="true">·</span>
               <span className="eos-clock-time">{clk.time}</span>
               <span className="eos-clock-zone">{clk.zone}</span>

@@ -112,12 +112,15 @@
 .ev-st.running { color:var(--info-ink); }
 .ev-more { display:inline-flex; align-items:center; gap:6px; margin-top:4px; padding:10px 0; border:0; background:none; cursor:pointer; font:600 16px/1.4 var(--font-ui); color:var(--accent-ink); }
 
-@media (max-width:900px) {
-  .ev .ph-title h1 { font-size:34px; }
+@media (max-width:1100px) {
   .ev-split { grid-template-columns:minmax(0,1fr); gap:24px; }
+  .ev-split > * { min-width:0; max-width:100%; }
   .ev-index { position:static; max-height:none; overflow:visible; padding-right:0; }
   .ev-run { grid-template-columns:minmax(0,1fr); row-gap:4px; }
   .ev-run-end { justify-self:start; flex-wrap:wrap; }
+}
+@media (max-width:900px) {
+  .ev .ph-title h1 { font-size:34px; }
 }
 /* an event whose detail could not load: said in the reader, with a retry (Refresh retries too) */
 .ev-fail { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; margin:0; color:var(--ink-2); }

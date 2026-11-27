@@ -213,6 +213,8 @@ body {
    ========================================================================== */
 .app {
   height: 100dvh;
+  max-width: 100vw;
+  overflow-x: clip;
   display: grid;
   grid-template-columns: 236px minmax(0, 1fr);
   grid-template-rows: 52px minmax(0, 1fr);
@@ -221,7 +223,7 @@ body {
 .appbar {
   grid-column: 2; grid-row: 1;
   background: var(--paper); border-bottom: 1px solid var(--hairline);
-  padding: 0 18px; gap: 12px; display: flex; align-items: center; min-width: 0;
+  padding: 0 18px; gap: 12px; display: flex; align-items: center; min-width: 0; max-width: 100%;
 }
 .eos-mob-brand { display: none; }
 .side {
@@ -229,7 +231,7 @@ body {
   background: var(--paper); border-right: 1px solid var(--hairline);
   display: flex; flex-direction: column; height: 100dvh; overflow: hidden;
 }
-.main { grid-column: 2; grid-row: 2; min-width: 0; }
+.main { grid-column: 2; grid-row: 2; min-width: 0; max-width: 100%; overflow-x: clip; }
 
 /* Embedded Sidebar Brand + Bank Name + Compact Agent Status Pill */
 .eos-side-top {
@@ -377,10 +379,16 @@ body {
 .eos-clock-zone { color: var(--ink-3); }
 
 @media (max-width: 1520px) {
-  .eos-cmd-btn { width: 176px; }
-  .eos-sched { gap: 3px; }
+  .appbar { padding: 0 14px; gap: 10px; }
+  .eos-cmd-btn { width: 168px; }
+  .eos-sched { gap: 4px; }
   .eos-sched-item { padding: 2px 4px; gap: 3px; }
   .eos-clock { padding: 3px 8px; }
+}
+@media (max-width: 1320px) {
+  .eos-cmd-btn { width: 148px; }
+  .eos-sched-last { display: none; }
+  .eos-clock-date, .eos-clock-dot { display: none; }
 }
 @media (max-width: 1120px) {
   .eos-sched-sub { display: none; }
@@ -1144,14 +1152,23 @@ div.eos-fold.is-open > .eos-fold-sum::before {
 .nav a:active, .eos-row:active { transform: scale(0.985); }
 .eos-hd h1 .mono { font-size: inherit; }
 
-/* Responsive Mobile Shell */
-@media (max-width: 900px) {
-  .app { grid-template-columns: 1fr; grid-template-rows: 52px minmax(0, 1fr); }
+/* Responsive Tablet & Narrow Split-Window Shell (<=1100px stack splits, <=1024px collapse sidebar to drawer) */
+@media (max-width: 1100px) {
+  .eos-split, .eos-spec2 {
+    grid-template-columns: minmax(0, 1fr);
+    height: auto; max-height: none; overflow: visible;
+  }
+  .eos-split > * { min-width: 0; max-width: 100%; }
+  .eos-list { border-right: 0; border-bottom: 1px solid var(--hairline); max-height: 46vh; }
+  .eos-insp { height: auto; overflow: visible; }
+}
+@media (max-width: 1024px) {
+  .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: 52px minmax(0, 1fr); }
   .appbar { grid-column: 1; grid-row: 1; padding: 0 12px; gap: 8px; }
-  .main { grid-column: 1; grid-row: 2; background: var(--paper); overflow-x: hidden; }
+  .main { grid-column: 1; grid-row: 2; background: var(--paper); overflow-x: clip; }
   .eos-mob-brand { display: inline-flex; }
   .eos-sched { display: none; }
-  /* Keep sidebar completely hidden when closed on mobile so it never bleeds behind content */
+  /* Keep sidebar completely hidden when closed on mobile/tablet so it never bleeds behind content */
   .side { display: none !important; }
   .side[data-open="true"] {
     display: flex !important;
@@ -1167,7 +1184,7 @@ div.eos-fold.is-open > .eos-fold-sum::before {
 /* Clean Enterprise Page Container, Header, Table & Focal Surface */
 .eos-pad, .page {
   padding: 22px 28px 64px; display: flex; flex-direction: column; gap: 18px;
-  max-width: 1280px; width: 100%; margin: 0 auto;
+  max-width: 1280px; width: 100%; min-width: 0; margin: 0 auto;
   animation: eos-enter 180ms var(--ease-out);
 }
 .eos-hd { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }

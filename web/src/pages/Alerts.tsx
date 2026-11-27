@@ -366,7 +366,11 @@ export function AlertsPage() {
                 <div className="eos-ai">
                   <div className="eos-ai-hd">
                     <span className="eos-spark" aria-hidden="true">✦</span>
-                    Investigation Agent · Expected impact (AI) vs. your bank data
+                    <span>
+                      Investigation Agent · {cur.effects.length !== products.length
+                        ? `${count(cur.effects.length, "possible impact")} across ${count(products.length, "product")}`
+                        : "Expected impact (AI) vs. your bank data"}
+                    </span>
                   </div>
                   <div className="eos-ai-bd">
                     <table className="eos-tbl eos-alert-tbl">
@@ -374,44 +378,55 @@ export function AlertsPage() {
                         <tr><th>Product</th><th>Expected (AI estimate)</th><th>Your data says</th></tr>
                       </thead>
                       <tbody>
-                        {groupedEffects.map(([product, list]) => (
-                          <tr key={product}>
-                            <td>
-                              <strong style={{ color: "var(--ink)" }}>{product}</strong>
-                              <div className="col" style={{ gap: 4, marginTop: 2 }}>
-                                {list.map(e => (
-                                  <div key={e.hypothesis_id} className="small muted">{e.chain_label}</div>
-                                ))}
-                              </div>
-                            </td>
-                            <td>
-                              <div className="col" style={{ gap: 6 }}>
-                                {list.map(e => (
-                                  <div key={e.hypothesis_id}>
-                                    <div style={{ color: "var(--ink)", fontWeight: 500 }}>{capFirst(impactText(e.metric_name, e.direction))}</div>
-                                    <div className="small muted">{sizeTiming(e.size, e.timing)}</div>
-                                  </div>
-                                ))}
-                              </div>
-                            </td>
-                            <td>
-                              <div className="col" style={{ gap: 6 }}>
-                                {list.map(e => {
-                                  const m = e.check ? checkMove(e.check.what) : null;
-                                  return (
-                                    <div key={e.hypothesis_id}>
-                                      {m ? (
-                                        <><strong style={{ color: "var(--ink)" }}>{m.move}</strong> <span className="small muted">{m.against}</span></>
+                        {groupedEffects.map(([product, list]) => {
+                          const chains = [...new Set(list.map(e => e.chain_label).filter(Boolean))];
+                          const moves = [...new Map(list.map(e => {
+                            const txt = capFirst(impactText(e.metric_name, e.direction));
+                            const st = sizeTiming(e.size, e.timing);
+                            return [`${txt}|${st}`, { id: e.hypothesis_id, txt, st }];
+                          })).values()];
+                          const checks = [...new Map(list.map(e => {
+                            const m = e.check ? checkMove(e.check.what) : null;
+                            const key = m ? `${m.move}|${m.against}` : (cur.basis === "data" ? "__wait" : "__exp");
+                            return [key, { id: e.hypothesis_id, m }];
+                          })).values()];
+                          return (
+                            <tr key={product}>
+                              <td>
+                                <strong style={{ color: "var(--ink)" }}>{product}</strong>
+                                {list.length > 1 && <span className="small muted"> · {list.length} angles</span>}
+                                <div className="col" style={{ gap: 3, marginTop: 2 }}>
+                                  {chains.map((ch, idx) => (
+                                    <div key={idx} className="small muted">{chains.length > 1 ? `• ${ch}` : ch}</div>
+                                  ))}
+                                </div>
+                              </td>
+                              <td>
+                                <div className="col" style={{ gap: 6 }}>
+                                  {moves.map(mv => (
+                                    <div key={mv.id}>
+                                      <div style={{ color: "var(--ink)", fontWeight: 500 }}>{mv.txt}</div>
+                                      <div className="small muted">{mv.st}</div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </td>
+                              <td>
+                                <div className="col" style={{ gap: 6 }}>
+                                  {checks.map(ck => (
+                                    <div key={ck.id}>
+                                      {ck.m ? (
+                                        <><strong style={{ color: "var(--ink)" }}>{ck.m.move}</strong> <span className="small muted">{ck.m.against}</span></>
                                       ) : (
                                         <span className="badge b-noeffect">{cur.basis === "data" ? "Waiting for data" : "Expectations only"}</span>
                                       )}
                                     </div>
-                                  );
-                                })}
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
+                                  ))}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>

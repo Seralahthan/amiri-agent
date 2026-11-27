@@ -44,8 +44,9 @@
 .fd-run { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; padding-top:8px; font-size:13px; }
 .fd-more { display:inline-flex; align-items:center; gap:6px; padding:10px 0; border:0; background:none; cursor:pointer; font:600 13px/1.4 var(--font-ui); color:var(--accent); }
 
-@media (max-width:780px) {
-  .fd-line { grid-template-columns:minmax(0,1fr) auto; row-gap:4px; }
+@media (max-width:1024px) {
+  .fd-line { grid-template-columns:minmax(0,1fr) auto; row-gap:4px; min-width:0; max-width:100%; }
+  .fd-line > * { min-width:0; overflow-wrap:anywhere; }
   .fd-line time, .fd-src { grid-column:1; }
   .fd-t { grid-column:1 / -1; }
   .fd-loc { text-align:left; }
