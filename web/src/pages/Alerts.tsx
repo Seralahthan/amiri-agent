@@ -10,7 +10,7 @@ import { Icon } from "../components/Icon";
 import { SearchInput } from "../components/SearchInput";
 import { SelectMenu } from "../components/SelectMenu";
 import { Empty, ListSkeleton, LoadError, useNow, useToast } from "../components/ui";
-import { ago, dayTime } from "../format";
+import { ago, dayTime, person } from "../format";
 import {
   ACTION_MEANS, alertOrder, checkMove, count, eventTitle, impactText, LEVEL_LABEL, LEVEL_TONE, sizeTiming, sourceInfo,
 } from "../plain";
@@ -447,7 +447,7 @@ export function AlertsPage() {
                 <Fold summary={`Audit trail (${runs(cur).length} entries)`} defaultOpen={false} bodyClassName="eos-fold-bd col">
                   <div className="col" style={{ gap: 4 }}>
                     {runs(cur).map((r, i) => (
-                      <div key={i}><b>{CHANGE[r.change] ?? r.change}{r.n > 1 ? ` (${r.n}×)` : ""}</b> · <span className="mono">{dayTime(r.at)}</span>{r.by ? ` · ${r.by}` : ""}</div>
+                      <div key={i}><b>{CHANGE[r.change] ?? r.change}{r.n > 1 ? ` (${r.n}×)` : ""}</b> · <span className="mono">{dayTime(r.at)}</span>{r.by ? ` · ${person(r.by)}` : ""}</div>
                     ))}
                   </div>
                 </Fold>

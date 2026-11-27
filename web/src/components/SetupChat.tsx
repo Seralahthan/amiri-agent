@@ -8,8 +8,9 @@ import { ApiError } from "../api/client";
 import { chat, type AssistantStatus, type Change, type ChatMessage, type Proposal, type TrackDef, type TrackState } from "../api/assistant";
 import { dayTime, plural } from "../format";
 import { Icon } from "./Icon";
+import { useInstallation } from "../App";
 import { SelectMenu } from "./SelectMenu";
-import { changeWords, continuedTo, continueText, fieldWord, nextOpen, SECTION_ONE, STARTERS, trackFor, valueText, waitingForAnswer } from "./setupFlow";
+import { changeWords, continuedTo, continueText, fieldWord, nextOpen, SECTION_ONE, startersFor, trackFor, valueText, waitingForAnswer } from "./setupFlow";
 import { ChatToggleCtx, Modal, useRole, useToast } from "./ui";
 import "../styles/setup.css";
 
@@ -114,6 +115,8 @@ export function SetupChat({ institutionId, onTrack, onApplied, at, askKey = 0 }:
   const chatToggle = useContext(ChatToggleCtx);
   const toast = useToast();
   const { role } = useRole();
+  const installation = useInstallation();  // the chat's starters follow the institution's home country
+  const country = institutionId && installation?.institution_id === institutionId ? installation.home_country : null;
   const [status, setStatus] = useState<AssistantStatus | null>(null);
   const [defs, setDefs] = useState<TrackDef[]>([]);
   const [tracks, setTracks] = useState<TrackState[]>([]);
@@ -327,7 +330,7 @@ export function SetupChat({ institutionId, onTrack, onApplied, at, askKey = 0 }:
   }, [atTrack]);  // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (askKey) box.current?.focus(); }, [askKey]);
   const hereLabel = here && here === atTrack && at?.label ? at.label : def(here)?.label ?? null;
-  const starters = here && !working && !messages.some(m => m.track === here && m.role === "user") ? STARTERS[here] ?? [] : [];
+  const starters = here && !working && !messages.some(m => m.track === here && m.role === "user") ? startersFor(country)[here] ?? [] : [];
   const answered = new Set(messages.filter(m => m.kind === "answer").map(m => m.content.question_id));
   const lastQuestion = [...messages].reverse().find(m => m.kind === "question");
   const shownTracks = tracks.filter(t => t.shown);
@@ -406,7 +409,7 @@ export function SetupChat({ institutionId, onTrack, onApplied, at, askKey = 0 }:
       <div style={{ borderTop: "1px solid var(--hairline)", padding: 12, display: "flex", gap: 8, alignItems: "center" }}>
         <textarea ref={box} className="input" rows={2} aria-label="Message to the setup agent" style={{ flex: 1, resize: "none" }} value={draft} disabled={working}
           maxLength={MAX_CHARS}
-          placeholder={working ? "The setup agent is working… you can type once it's done." : picked ? `About ${def(picked)?.label.toLowerCase()}…` : institutionId ? "Ask, check, or ask for a change…" : "e.g. We're a commercial bank in Sri Lanka with branches in Kerala"}
+          placeholder={working ? "The setup agent is working… you can type once it's done." : picked ? `About ${def(picked)?.label.toLowerCase()}…` : institutionId ? "Ask, check, or ask for a change…" : "e.g. We're a commercial bank with branches in two regions"}
           onChange={e => setDraft(e.target.value)}
           onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); if (draft.trim() && !working) { send({ text: draft.trim() }); setDraft(""); } } }} />
         <button className="btn btn--primary" type="button" disabled={working || !draft.trim()} onClick={() => { send({ text: draft.trim() }); setDraft(""); }}>Send</button>
