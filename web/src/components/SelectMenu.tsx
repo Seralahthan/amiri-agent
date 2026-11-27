@@ -26,22 +26,30 @@ export function SelectMenu({
   const listId = useId();
   const current = options.find(o => o.value === value) ?? options[0];
 
+  const hiRef = useRef(hi);
+  hiRef.current = hi;
+  // on opening, the highlight starts on the current value (once: not again after each arrow key or hover)
+  useEffect(() => { if (open) setHi(Math.max(0, options.findIndex(o => o.value === value))); }, [open]);  // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!open) return;
-    setHi(Math.max(0, options.findIndex(o => o.value === value)));
     const onDown = (e: MouseEvent) => {
       if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { e.preventDefault(); setOpen(false); }
-      else if (e.key === "ArrowDown") { e.preventDefault(); setHi(i => Math.min(options.length - 1, i + 1)); }
+      if (e.key === "Escape") { e.preventDefault(); setOpen(false); return; }
+      const root = rootRef.current, at = document.activeElement;
+      if (!root?.contains(at)) return;  // keys typed elsewhere on the page aren't the dropdown's
+      if (e.key === "ArrowDown") { e.preventDefault(); setHi(i => Math.min(options.length - 1, i + 1)); }
       else if (e.key === "ArrowUp") { e.preventDefault(); setHi(i => Math.max(0, i - 1)); }
-      else if (e.key === "Enter" && options[hi]) { e.preventDefault(); onChange(options[hi].value); setOpen(false); }
+      // on a focused option, the button's own click picks it; on the trigger, Enter picks the highlighted one
+      else if (e.key === "Enter" && !(at as HTMLElement).closest(".eos-dd-opt") && options[hiRef.current]) {
+        e.preventDefault(); onChange(options[hiRef.current].value); setOpen(false);
+      }
     };
     window.addEventListener("mousedown", onDown);
     window.addEventListener("keydown", onKey);
     return () => { window.removeEventListener("mousedown", onDown); window.removeEventListener("keydown", onKey); };
-  }, [open, options, value, hi, onChange]);
+  }, [open, options, onChange]);
 
   return (
     <div className="eos-dd" ref={rootRef} data-open={open ? "true" : "false"}>

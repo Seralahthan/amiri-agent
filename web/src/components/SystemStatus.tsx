@@ -8,16 +8,23 @@ import "../styles/system-status.css";
 /** Compact sidebar Agent Status pill placed right under the AMIRI Agent brand header. Clicking expands per-agent diagnostics. */
 export function SystemStatus({ o, now, down = false }: { o: Overview | null; now: Date; down?: boolean }) {
   const [open, setOpen] = useState(false);
+  // the server never answered: say so, rather than show nothing (still loading: nothing yet)
+  if (!o && down) return (
+    <div className="eos-agent-wrap">
+      <span className="eos-agent-pill"><span className="eos-agent-dot off" aria-hidden="true" /><strong className="eos-agent-lbl">Offline</strong>
+        <span className="eos-agent-sub">no answer from server</span></span>
+      <span className="sr" role="status">AMIRI Agent: Offline</span>
+    </div>);
   if (!o || o.first_run || !o.services) return null;
   const s = o.services;
   const agents = [["Investigation", s.investigation.connected], ["Monitors", s.monitor.connected], ["Setup agent", s.assistant.connected], ["Radar", s.radar.connected]] as const;
   const up = agents.filter(([, u]) => u).length;
   const liveOk = !down && s.tick.ok;
   const allUp = liveOk && up === agents.length;
-  const label = down ? "Offline" : allUp ? "Live" : liveOk ? "Live" : "Paused";
+  const label = down ? "Offline" : allUp ? "Live" : liveOk ? "Degraded" : "Paused";
   const when = s.tick.last_at ? ago(s.tick.last_at, now) : null;
-  const sub = down ? "no answer from server" : !when ? "updates not run yet" : `updates ran ${when}`;
-  const dotClass = down ? "off" : allUp ? "live" : liveOk ? "live" : "warn";
+  const sub = down ? "no answer from server" : liveOk && !allUp ? `${up} of ${agents.length} agents working` : !when ? "updates not run yet" : `updates ran ${when}`;
+  const dotClass = down ? "off" : allUp ? "live" : "warn";
   return (
     <div className="eos-agent-wrap">
       <button type="button" className="eos-agent-pill" aria-expanded={open} aria-controls="sbs-detail" onClick={() => setOpen(x => !x)}

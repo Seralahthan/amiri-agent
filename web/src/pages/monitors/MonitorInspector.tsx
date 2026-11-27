@@ -4,7 +4,7 @@ import { ApiError } from "../../api/client";
 import { monitorsApi, type Monitor, type MonitorFinding, type MonitorRow } from "../../api/monitors";
 import { Icon } from "../../components/Icon";
 import { DeadlineBadge, Fold } from "../../components/blocks";
-import { InlineSkeleton, useNow, useToast } from "../../components/ui";
+import { InlineSkeleton, LoadError, useNow, useToast } from "../../components/ui";
 import { ago, dayTime } from "../../format";
 import { everyText, undated } from "../../plain";
 import { MonitorActions, StatusBadge } from "./Monitors";
@@ -22,18 +22,39 @@ const formatExposureId = (id: string) => {
   return prefix ? `${titleCaseWithAcronyms(prefix)} · ${clean}` : clean;
 };
 
+/** The next version's brief and example headlines while it waits (or is being edited): what an approval would put live.
+ *  Shown apart from the running version, and only when a version is running beside it. */
+export function PendingPreview({ m }: { m: Monitor }) {
+  if (!m.pending || !m.live_spec) return null;
+  const pub = m.spec.public, ex = pub?.example_headlines;
+  if (!pub?.in_one_sentence && (!ex || (!ex.match.length && !ex.not_match.length))) return null;
+  return (
+    <div className="eos-ai eos-ai--compact" aria-label={`Version ${m.pending.version}, not running yet`}>
+      <div className="eos-ai-hd"><span className="eos-spark" aria-hidden="true">✦</span>
+        Version {m.pending.version} · {m.pending.status === "submitted" ? "waiting for approval" : "being edited"} · not running yet</div>
+      {pub?.in_one_sentence && <div className="eos-ai-bd">{pub.in_one_sentence}</div>}
+      {ex && (ex.match.length > 0 || ex.not_match.length > 0) && <div className="eos-ai-bd col" style={{ gap: 6 }}>
+        {ex.match.map((x, i) => <div key={`m-${i}`}><span className="badge b-ok" style={{ marginRight: 6 }}>Match</span>{x.headline}</div>)}
+        {ex.not_match.map((x, i) => <div key={`n-${i}`}><span className="badge b-noeffect" style={{ marginRight: 6 }}>Ignore</span><span className="muted">{x}</span></div>)}
+      </div>}
+    </div>
+  );
+}
+
 export function MonitorInspector({ row, findings, onChange }: { row: MonitorRow; findings?: MonitorFinding[]; onChange: () => void }) {
   const now = useNow(30_000);
   const toast = useToast();
   const [full, setFull] = useState<Monitor | null>(null);
   const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<unknown>(null);
+  const [retry, setRetry] = useState(0);
 
   useEffect(() => {
     let live = true;
-    setFull(null);
-    monitorsApi.get(row.monitor_id).then(m => { if (live) setFull(m); }).catch(() => {});
+    setFull(null); setErr(null);
+    monitorsApi.get(row.monitor_id).then(m => { if (live) setFull(m); }).catch(e => { if (live) setErr(e); });
     return () => { live = false; };
-  }, [row.monitor_id, row.updated_at]);
+  }, [row.monitor_id, row.updated_at, retry]);
 
   const runNow = async () => {
     setBusy(true);
@@ -71,7 +92,9 @@ export function MonitorInspector({ row, findings, onChange }: { row: MonitorRow;
 
       <MonitorActions m={row} onChange={onChange} compact />
 
-      {!full ? <InlineSkeleton /> : <>
+      {err != null && !full ? <LoadError error={err} onRetry={() => setRetry(n => n + 1)} what="this monitor's details" />
+        : !full ? <InlineSkeleton /> : <>
+        <PendingPreview m={full} />
         {pub && (
           <div className="eos-spec2">
             <div>
@@ -118,7 +141,7 @@ export function MonitorInspector({ row, findings, onChange }: { row: MonitorRow;
 
         <div className="col" style={{ gap: 8 }}>
           {ex && (ex.match.length > 0 || ex.not_match.length > 0) && (
-            <Fold summary={`Example headlines · ${ex.match.length} match, ${ex.not_match.length} don't`} defaultOpen>
+            <Fold summary={`Example headlines${full.pending && full.live_spec ? ` · version ${full.live_version}, running` : ""} · ${ex.match.length} match, ${ex.not_match.length} don't`} defaultOpen>
               <div className="col" style={{ gap: 6 }}>
                 {ex.match.map((m, i) => <div key={`m-${i}`}><span className="badge b-ok" style={{ marginRight: 6 }}>Match</span>{m.headline}</div>)}
                 {ex.not_match.map((n, i) => <div key={`n-${i}`}><span className="badge b-noeffect" style={{ marginRight: 6 }}>Ignore</span><span className="muted">{n}</span></div>)}

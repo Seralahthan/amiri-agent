@@ -38,6 +38,12 @@ export function CommandPalette({ open, onClose, ov, projector, onToggleProjector
   const typingTimer = useRef<number>(0);
   const [hi, setHi] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const close = useRef(onClose);  // Frame passes a new onClose on every render: opening must not re-run for it
+  close.current = onClose;
+  const opener = useRef<HTMLElement | null>(null);
+  const went = useRef(false);  // a pick navigated: the page takes the focus, not the search button
 
   useEffect(() => {
     window.clearTimeout(typingTimer.current);
@@ -49,15 +55,27 @@ export function CommandPalette({ open, onClose, ov, projector, onToggleProjector
 
   useEffect(() => {
     if (!open) return;
+    opener.current = document.activeElement as HTMLElement | null;
+    went.current = false;
     setQ("");
     setHi(0);
     setTimeout(() => inputRef.current?.focus(), 0);
-    const onEsc = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { e.preventDefault(); onClose(); }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { e.preventDefault(); close.current(); return; }
+      if (e.key !== "Tab" || !boxRef.current) return;  // Tab stays inside the dialog
+      const items = [...boxRef.current.querySelectorAll<HTMLElement>("input, button:not([disabled])")];
+      if (!items.length) return;
+      const a = items[0], z = items[items.length - 1], at = document.activeElement;
+      if (!boxRef.current.contains(at)) { e.preventDefault(); a.focus(); }
+      else if (e.shiftKey && at === a) { e.preventDefault(); z.focus(); }
+      else if (!e.shiftKey && at === z) { e.preventDefault(); a.focus(); }
     };
-    window.addEventListener("keydown", onEsc);
-    return () => window.removeEventListener("keydown", onEsc);
-  }, [open, onClose]);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      if (!went.current) opener.current?.focus?.({ preventScroll: true });
+    };
+  }, [open]);
 
   const items = useMemo<CmdItem[]>(() => {
     const out: CmdItem[] = [];
@@ -119,10 +137,12 @@ export function CommandPalette({ open, onClose, ov, projector, onToggleProjector
   }, [items, q, projector, onToggleProjector]);
 
   useEffect(() => { setHi(0); }, [q]);
+  useEffect(() => { listRef.current?.querySelector<HTMLElement>(`[data-idx="${hi}"]`)?.scrollIntoView({ block: "nearest" }); }, [hi]);
 
   if (!open) return null;
 
   const pick = (it: CmdItem) => {
+    went.current = !it.action;
     onClose();
     if (it.action) it.action();
     else nav(it.to);
@@ -131,7 +151,7 @@ export function CommandPalette({ open, onClose, ov, projector, onToggleProjector
   return (
     <div className="eos-cmd-overlay" role="dialog" aria-modal="true" aria-label="Search AMIRI Agent"
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="eos-cmd-modal">
+      <div className="eos-cmd-modal" ref={boxRef}>
         <div className={`eos-cmd-in${typing ? " is-searching" : ""}${q.trim() ? " has-val" : ""}`}>
           <svg className="eos-s-mag" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
             <circle cx="7" cy="7" r="4.8" /><path d="m10.7 10.7 3.2 3.2" />
@@ -152,11 +172,11 @@ export function CommandPalette({ open, onClose, ov, projector, onToggleProjector
           <span className="eos-kbd">ESC</span>
           <span className="eos-s-beam" aria-hidden="true" />
         </div>
-        <div className="eos-cmd-list">
+        <div className="eos-cmd-list" ref={listRef}>
           {filtered.length === 0
             ? <div style={{ padding: "18px", textAlign: "center", color: "var(--ink-3)", fontSize: 13 }}>No matching records</div>
             : filtered.map((it, idx) => (
-              <button key={it.id} type="button" className="eos-cmd-item" data-hi={idx === hi}
+              <button key={it.id} type="button" className="eos-cmd-item" data-idx={idx} data-hi={idx === hi}
                 onMouseEnter={() => setHi(idx)} onClick={() => pick(it)}>
                 <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {it.label}

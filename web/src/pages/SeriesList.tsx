@@ -10,7 +10,7 @@ import { HowItWorks, StatusPill } from "../components/blocks";
 import { AddSeriesModal, FetchBadge, RefreshButton, seriesSentence, StateBadge, themeMeaning } from "../components/series";
 import { Banner, Empty, useNow, useRole, ListSkeleton, LoadError, useToast } from "../components/ui";
 import { ago, due, pctFine, price, when, zx, ZONE_LABEL } from "../format";
-import { count, ruleText } from "../plain";
+import { count, ruleText, SERIES_STATE } from "../plain";
 
 const POLL_MS = 60_000;
 const concern = (s: Series) => (s.state === "moved" ? 0 : s.state === "stale" ? 1 : 2);
@@ -148,9 +148,12 @@ export function SeriesList() {
 
   const cur = filtered.find(s => s.series_id === selId) ?? filtered[0] ?? null;
 
+  const simReq = useRef({ id: "", n: 0 });  // the latest simulation asked for: older answers, or another series', are dropped
   useEffect(() => {
     setSimOut(null);
-    if (!cur) { setBars(null); return; }
+    simReq.current = { id: cur?.series_id ?? "", n: simReq.current.n + 1 };
+    setBars(null);  // the previous series' or range's bars never show under this one
+    if (!cur) return;
     const range = CHART_RANGES.find(r => r.id === rangeId) ?? CHART_RANGES[1];
     const lastMs = cur.latest?.bar_ts ? new Date(cur.latest.bar_ts).getTime() : 0;
     const anchored = !!lastMs && Date.now() - lastMs > (range.days * 86400_000) / 2;
@@ -166,7 +169,9 @@ export function SeriesList() {
   const runSim = async () => {
     if (!cur || !Number.isFinite(simPct) || simPct === 0) return;
     setSimBusy(true);
-    try { const r = await seriesApi.simulate(cur.series_id, simPct); setSimOut(r); toast(r.note); }
+    const req = { id: cur.series_id, n: simReq.current.n + 1 };
+    simReq.current = req;
+    try { const r = await seriesApi.simulate(req.id, simPct); if (simReq.current === req) setSimOut(r); toast(r.note); }
     catch (e) { toast(String(e)); }
     finally { setSimBusy(false); }
   };
@@ -204,6 +209,8 @@ export function SeriesList() {
             { value: "moved", label: "Unusual move" },
             { value: "normal", label: "Normal" },
             { value: "stale", label: "Late / stale" },
+            { value: "warming_up", label: SERIES_STATE.warming_up[0] },
+            { value: "pending", label: SERIES_STATE.pending[0] },
             { value: "paused", label: "Paused" },
           ]} />
         </div>
@@ -222,6 +229,8 @@ export function SeriesList() {
           { key: "moved", label: "Unusual moves", dot: "paused", rows: filtered.filter(s => s.state === "moved") },
           { key: "normal", label: "Watching · Normal", dot: "live", rows: filtered.filter(s => s.state === "normal") },
           { key: "stale", label: "Late / Stale", dot: "submitted", rows: filtered.filter(s => s.state === "stale") },
+          { key: "warming_up", label: SERIES_STATE.warming_up[0], dot: "submitted", rows: filtered.filter(s => s.state === "warming_up") },
+          { key: "pending", label: SERIES_STATE.pending[0], dot: "draft", rows: filtered.filter(s => s.state === "pending") },
           { key: "paused", label: "Paused", dot: "draft", rows: filtered.filter(s => s.state === "paused") },
         ].filter(g => g.rows.length > 0);
         const focusedGroup = hoveredGroup ?? scrollGroup;

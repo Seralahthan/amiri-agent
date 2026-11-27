@@ -54,8 +54,9 @@ export function SearchInput({
         placeholder={placeholder}
       />
       {hasVal && !searching && count !== undefined && (
-        <span className="eos-s-cnt">{count} found</span>
+        <span className="eos-s-cnt" aria-hidden="true">{count} found</span>
       )}
+      <span className="sr" role="status" aria-live="polite">{hasVal && !searching && count !== undefined ? `${count} found` : ""}</span>
       {hasVal && (
         <button
           type="button"

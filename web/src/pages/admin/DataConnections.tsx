@@ -86,7 +86,7 @@ export function DataConnectionsPage() {
         <div className="eos-ledger-cell">
           <span className="eos-l-step">Radar Daily Runs</span>
           <span className="eos-l-val">{radarSt ? `${radarSt.run_now.left}/${radarSt.run_now.limit}` : "—"}</span>
-          <span className="eos-l-meta">{radarSt?.connected ? "Check-now quota left" : "Not connected"}</span>
+          <span className="eos-l-meta">{!radarSt ? "Status unavailable" : radarSt.connected ? "Check-now quota left" : "Not connected"}</span>
         </div>
         <div className="eos-ledger-cell">
           <span className="eos-l-step">Twelve Data Credits</span>

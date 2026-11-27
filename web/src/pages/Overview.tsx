@@ -80,7 +80,7 @@ export function OverviewPage() {
         inst.profile(x.institution.institution_id).then(setProfile).catch(() => {});
         if (x.attention.some(a => a.kind === "recommended")) {
           inst.readiness(x.institution.institution_id).then(r => setRecs(r.checks.filter(c => c.level === "recommended" && !c.ok))).catch(() => {});
-        }
+        } else setRecs([]);
       }
     } catch (e) { setErr(e); }
   }, [admin]);
@@ -191,10 +191,11 @@ export function OverviewPage() {
                   {(o.findings ?? []).slice(0, 4).map(f => {
                     const srcLbl = f.source === "radar" ? "RADAR" : f.source === "monitor" ? "MONITOR" : f.source === "timeseries" ? "PRICE" : "SIGNAL";
                     const srcCls = f.source === "radar" ? "b-info" : f.source === "monitor" ? "b-warn" : "b-ok";
+                    const to = f.event_id ? `/events/${f.event_id}` : `/findings#f-${f.finding_id}`;
                     return (
-                      <tr key={f.finding_id} className="click" onClick={() => nav(f.event_id ? `/events/${f.event_id}` : `/findings#f-${f.finding_id}`)}>
+                      <tr key={f.finding_id} className="click" onClick={() => nav(to)}>
                         <td style={{ whiteSpace: "nowrap" }}><span className={`badge ${srcCls}`}>{srcLbl}</span></td>
-                        <td><strong style={{ color: "var(--ink)", fontWeight: 500 }}>{undated(f.title)}</strong></td>
+                        <td><Link to={to} onClick={e => e.stopPropagation()} style={{ color: "var(--ink)", fontWeight: 500 }}>{undated(f.title)}</Link></td>
                         <td className="r small muted" style={{ whiteSpace: "nowrap" }}>{ago(f.created_at, now)}</td>
                       </tr>
                     );
@@ -221,7 +222,7 @@ export function OverviewPage() {
                     <td>
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                         <TonePill tone={e.tone} />
-                        <strong style={{ color: "var(--ink)" }}>{eventTitle(e)}</strong>
+                        <Link to={`/events/${e.event_id}`} onClick={x => x.stopPropagation()} style={{ color: "var(--ink)", fontWeight: 600 }}>{eventTitle(e)}</Link>
                       </span>
                     </td>
                     <td className="mono">{e.effects > 0 ? plural(e.effects, "impact") : "None traced"}</td>
@@ -245,7 +246,7 @@ export function OverviewPage() {
                     <tr key={m.series_id} className="click" onClick={() => nav(`/series/${m.series_id}`)}>
                       <td>
                         <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                          <strong style={{ color: "var(--ink)" }}>{m.name}</strong>
+                          <Link to={`/series/${m.series_id}`} onClick={x => x.stopPropagation()} style={{ color: "var(--ink)", fontWeight: 600 }}>{m.name}</Link>
                           {m.state === "moved" && <span className="badge b-warn">◆ Unusual</span>}
                         </span>
                       </td>

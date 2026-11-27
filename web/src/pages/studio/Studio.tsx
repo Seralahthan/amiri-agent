@@ -11,7 +11,7 @@ import { SearchInput } from "../../components/SearchInput";
 import { SelectMenu } from "../../components/SelectMenu";
 import { TonePill } from "../../components/blocks";
 import { Banner, Empty, InlineSkeleton, LoadError, Modal, PageHead, PageSkeleton, useToast } from "../../components/ui";
-import { dayTime, plural } from "../../format";
+import { dayTime, plural, rampDays } from "../../format";
 
 const TAG: Record<string, string> = { fx: "currency" };  // a template's tags in words
 
@@ -98,6 +98,7 @@ export function StudioPage() {
   const [templates, setTemplates] = useState<Template[] | null>(null);
   const [items, setItems] = useState<ScenarioRow[] | null>(null);
   const [details, setDetails] = useState<Record<string, Scenario>>({});
+  const [detailErr, setDetailErr] = useState<Record<string, unknown>>({});
   const [current, setCurrent] = useState<Simulation | null>(null);
   const [err, setErr] = useState<unknown>(null);
   const [own, setOwn] = useState(false);
@@ -167,11 +168,14 @@ export function StudioPage() {
   // Lazily fetch & cache full scenario details when selected or hovered
   const activeScId = activeEntry?.kind === "scenario" ? activeEntry.row.scenario_id : null;
   useEffect(() => {
-    if (!activeScId || details[activeScId]) return;
+    if (!activeScId || details[activeScId] || detailErr[activeScId]) return;
     let live = true;
-    studioApi.scenario(activeScId).then(d => { if (live) setDetails(m => ({ ...m, [activeScId]: d })); }).catch(() => {});
+    studioApi.scenario(activeScId).then(d => { if (live) setDetails(m => ({ ...m, [activeScId]: d })); })
+      .catch(e => { if (live) setDetailErr(m => ({ ...m, [activeScId]: e })); });
     return () => { live = false; };
-  }, [activeScId, details]);
+  }, [activeScId, details, detailErr]);
+  // Try again: clearing the error lets the effect above ask for it again
+  const retryDetail = (id: string) => setDetailErr(m => { const { [id]: _, ...rest } = m; return rest; });
 
   const ready = recordedRows[0];
   const totalCount = recordedRows.length + tplRows.length + savedRows.length;
@@ -300,7 +304,7 @@ export function StudioPage() {
                 const d = activeDetail;
                 const b = d?.built;
                 const headlineDays = new Set((b?.headlines ?? []).map(h => h.day));
-                const rampDays = b?.prices.off ? 0 : (b?.prices.shock?.ramp_business_days ?? 0);
+                const shockDays = b ? rampDays(b.clock.start_at, b.institution.time_zone, b.clock.steps, b.prices.off ? 0 : (b.prices.shock?.ramp_business_days ?? 0)) : new Set<number>();
                 return (
                   <>
                     <div className="eos-hd">
@@ -328,7 +332,8 @@ export function StudioPage() {
                       </div>
                     </div>
 
-                    {!d || !b ? <InlineSkeleton /> : (
+                    {(!d || !b) && detailErr[s.scenario_id] != null ? <LoadError error={detailErr[s.scenario_id]} onRetry={() => retryDetail(s.scenario_id)} what="this scenario" />
+                      : !d || !b ? <InlineSkeleton /> : (
                       <>
                         <div className="eos-ai">
                           <div className="eos-ai-hd"><span className="eos-spark" aria-hidden="true">✦</span>Sandbox Agent Pipeline · What AMIRI will trace</div>
@@ -366,7 +371,7 @@ export function StudioPage() {
                           <div className="eos-tl-bar" aria-label="21-day simulation schedule">
                             {Array.from({ length: b.clock.steps }, (_, idx) => {
                               const dayNum = idx + 1;
-                              const isShock = rampDays > 0 && dayNum >= 5 && dayNum < 5 + rampDays;
+                              const isShock = shockDays.has(dayNum);
                               const hasNews = headlineDays.has(dayNum);
                               return (
                                 <span

@@ -1,7 +1,7 @@
 // Run with `npm test` (Node runs the TypeScript directly).
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { clockText, moveSize, person, placeName, zx } from "./format.ts";
+import { clockText, moveSize, person, placeName, rampDays, zx } from "./format.ts";
 
 test("a move vs typical is rounded down, so one under the threshold never reads as it", () => {
   assert.equal(zx(-2.998), "2.9×");
@@ -43,4 +43,12 @@ test("an actor reads as a name, never an email address", () => {
   assert.equal(person("Amiri Agent"), "Amiri Agent");
   assert.equal(person(null), "");
   assert.doesNotMatch(person("x.y@bank.example.com and a@b.io"), /@/);
+});
+
+test("the Studio's price ramp lands on business days from the local start date", () => {
+  // Fri 20 Nov 2026, 18:00 in Colombo: day 1 Fri, days 2-3 the weekend, then Mon-Thu
+  assert.deepEqual([...rampDays("2026-11-20T12:30:00Z", "Asia/Colombo", 21, 5)], [1, 4, 5, 6, 7]);
+  // late evening UTC is already the next day in Colombo (Sat): the ramp starts on Monday, day 3
+  assert.deepEqual([...rampDays("2026-11-20T20:00:00Z", "Asia/Colombo", 21, 2)], [3, 4]);
+  assert.equal(rampDays("2026-11-20T12:30:00Z", "Asia/Colombo", 21, 0).size, 0);
 });

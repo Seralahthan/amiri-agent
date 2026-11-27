@@ -16,6 +16,7 @@ import { count, eventTitle, everyText, listText } from "../../plain";
 import { changed, draftedLine, MonitorForm } from "./monitorForm";
 import { CheckLine, FindingLine, headOf, lower, Progress, Versions, Watches, wentTo, who } from "./monitorParts";
 import { DraftFromProfile, MonitorActions, MonitorHelp, StatusBadge, useMonitorsStatus } from "./Monitors";
+import { PendingPreview } from "./MonitorInspector";
 import "../../styles/monitor-page.css";
 
 /** The answer in a sentence: what the last check found and where it went, or what the monitor waits for. */
@@ -143,17 +144,19 @@ export function MonitorPage() {
           {(() => {
             const pub = (m.live_spec ?? m.spec).public;
             const ex = pub?.example_headlines;
-            if (!pub?.in_one_sentence && (!ex || (!ex.match.length && !ex.not_match.length))) return null;
+            const running = m.pending && m.live_spec ? ` · version ${m.live_version}, running` : "";
+            if (!pub?.in_one_sentence && (!ex || (!ex.match.length && !ex.not_match.length))) return <PendingPreview m={m} />;
             return (
               <section className="col" style={{ gap: 10 }}>
+                <PendingPreview m={m} />
                 {pub?.in_one_sentence && (
                   <div className="eos-ai eos-ai--compact">
-                    <div className="eos-ai-hd"><span className="eos-spark" aria-hidden="true">✦</span>Plain-language brief</div>
+                    <div className="eos-ai-hd"><span className="eos-spark" aria-hidden="true">✦</span>Plain-language brief{running}</div>
                     <div className="eos-ai-bd">{pub.in_one_sentence}</div>
                   </div>
                 )}
                 {ex && (ex.match.length > 0 || ex.not_match.length > 0) && (
-                  <Fold summary={`Example headlines · ${ex.match.length} match, ${ex.not_match.length} don't`} defaultOpen={waits}>
+                  <Fold summary={`Example headlines${running} · ${ex.match.length} match, ${ex.not_match.length} don't`} defaultOpen={waits && !running}>
                     <div className="col" style={{ gap: 6 }}>
                       {ex.match.map((x, i) => <div key={`m-${i}`}><span className="badge b-ok" style={{ marginRight: 6 }}>Match</span>{x.headline}</div>)}
                       {ex.not_match.map((x, i) => <div key={`n-${i}`}><span className="badge b-noeffect" style={{ marginRight: 6 }}>Ignore</span><span className="muted">{x}</span></div>)}

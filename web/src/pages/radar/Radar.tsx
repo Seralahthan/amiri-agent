@@ -181,7 +181,7 @@ export function RadarPage() {
   const fit = useCallback(() => {
     const o = listRef.current;
     if (!o || settle.current) return;
-    if (matchMedia("(max-width: 1000px)").matches) { o.style.height = ""; return; }  // stacked layout: the CSS height (70vh) holds
+    if (matchMedia("(max-width: 1100px)").matches) { o.style.height = ""; return; }  // stacked layout: the CSS height (70vh) holds
     const top = o.getBoundingClientRect().top, cards = [...o.querySelectorAll<HTMLElement>(".rd-card")];
     // the day whose start is nearest the top (a short last day can stop short of it until the next one loads)
     const gap = (c: HTMLElement) => Math.abs(c.getBoundingClientRect().top - top);
@@ -264,7 +264,7 @@ export function RadarPage() {
       </div>}
 
       <div className="eos-filterbar">
-        <SearchInput value={query} onChange={v => { refilter(); setQuery(v); }} ariaLabel="Search Radar stories" placeholder="Search stories, headlines, or outlets…" count={all.length} />
+        <SearchInput value={query} onChange={v => { refilter(); setQuery(v); }} ariaLabel="Search Radar stories" placeholder="Search stories, headlines, or outlets…" count={shown.length} />
         <SelectMenu label="Filter by relevance" value={relFilter} onChange={v => { refilter(); setRelFilter(v); }} options={[
           { value: "", label: "Any relevance" },
           { value: "high", label: "High relevance" },

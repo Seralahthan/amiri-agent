@@ -36,7 +36,7 @@ function sourceLink(f: FindingRow): string | null {
 function SignalBars({ level, label }: { level: 1 | 2 | 3; label: string }) {
   const color = level === 3 ? "var(--accent)" : level === 2 ? "var(--high)" : "var(--ink-3)";
   return (
-    <span className="fd-sig" title={label} aria-label={label}>
+    <span className="fd-sig" role="img" title={label} aria-label={label}>
       <svg width="16" height="14" viewBox="0 0 16 14" aria-hidden="true">
         <rect x="1" y="9" width="3" height="4" rx="1" fill={level >= 1 ? color : "var(--hairline-2)"} />
         <rect x="6.5" y="5.5" width="3" height="7.5" rx="1" fill={level >= 2 ? color : "var(--hairline-2)"} />
@@ -73,7 +73,7 @@ export function FindingsPage() {
     return allXs.filter(f => {
       if (sourceFilter && f.source !== sourceFilter) return false;
       if (!q) return true;
-      return `${f.title} ${f.explanation} ${f.source}`.toLowerCase().includes(q);
+      return `${f.title} ${f.explanation} ${f.source} ${(SOURCE_META[f.source] ?? sourceInfo(f.source)).label}`.toLowerCase().includes(q);
     });
   }, [allXs, query, sourceFilter]);
   const n = (s: Show) => xs.filter(f => s === "all" || f.status === s).length;

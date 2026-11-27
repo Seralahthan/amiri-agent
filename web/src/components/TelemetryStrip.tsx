@@ -119,7 +119,9 @@ export function LiveWire({ ov, now, down = false }: { ov: Overview | null; now: 
 
   const [slots, setSlots] = useState(() => (typeof window === "undefined" ? 3 : window.innerWidth <= 680 ? 1 : window.innerWidth <= 1120 ? 2 : 3));
   const [offset, setOffset] = useState(0);
-  const [paused, setPaused] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const paused = hovered || focused;
 
   useEffect(() => {
     const update = () => setSlots(window.innerWidth <= 680 ? 1 : window.innerWidth <= 1120 ? 2 : 3);
@@ -152,10 +154,10 @@ export function LiveWire({ ov, now, down = false }: { ov: Overview | null; now: 
       className="eos-ticker eos-wire"
       role="region"
       aria-label="Live captured risk and news feed"
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
-      onFocus={() => setPaused(true)}
-      onBlur={() => setPaused(false)}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false); }}
     >
       <Link to="/findings" className="eos-tick-badge" title="View all captured findings">
         <span className={`eos-agent-dot ${liveTone}`} aria-hidden="true" />

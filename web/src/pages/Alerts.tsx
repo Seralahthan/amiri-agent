@@ -29,11 +29,11 @@ const what = (a: AlertItem) => { const e = lead(a); return capFirst(e ? impactTe
 const toneBadge = (t: string) => t === "red" ? "b-down" : t === "amber" ? "b-warn" : "b-ok";
 
 function runs(a: AlertItem) {
-  const out: { change: string; by: string; n: number; at: string }[] = [];
+  const out: { change: string; by: string; text: string; n: number; at: string }[] = [];
   for (const h of a.history) {
-    const by = isAgent(h.by) ? "" : h.by ?? "", last = out[out.length - 1];
-    if (last && last.change === h.change && last.by === by) { last.n++; last.at = h.at; }
-    else out.push({ change: h.change, by, n: 1, at: h.at });
+    const by = isAgent(h.by) ? "" : h.by ?? "", text = h.text ?? "", last = out[out.length - 1];
+    if (last && last.change === h.change && last.by === by && last.text === text) { last.n++; last.at = h.at; }
+    else out.push({ change: h.change, by, text, n: 1, at: h.at });
   }
   return out.reverse();
 }
@@ -85,12 +85,13 @@ export function AlertsPage() {
         alertsApi.list({
           status: show === "all" ? undefined : show,
           owner: team || undefined,
+          level: levelFilter || undefined,
           event_id: eventFilter || undefined,
         }),
       ]);
       setSum(s); setItems(xs); setErr(null);
     } catch (e) { setErr(e); }
-  }, [show, team, eventFilter]);
+  }, [show, team, levelFilter, eventFilter]);
 
   useEffect(() => {
     investigationApi.events().then(rows => {
@@ -100,7 +101,7 @@ export function AlertsPage() {
     }).catch(() => {});
   }, []);
 
-  useEffect(() => setItems(null), [show, team, eventFilter]);
+  useEffect(() => setItems(null), [show, team, levelFilter, eventFilter]);
   useEffect(() => { load(); const t = setInterval(load, 60_000); return () => clearInterval(t); }, [load]);
 
   const queue = useMemo(() => {
@@ -119,6 +120,8 @@ export function AlertsPage() {
   }, [items, show, query, levelFilter, eventFilter, eventRows]);
 
   const cur = queue?.find(a => a.alert_id === selId) ?? queue?.[0] ?? null;
+  const curId = useRef<string | null>(null);
+  curId.current = cur?.alert_id ?? null;
 
   const groupedEffects = useMemo(() => {
     if (!cur) return [];
@@ -147,7 +150,7 @@ export function AlertsPage() {
       setItems(xs => (xs ?? []).map(x => (x.alert_id === updated.alert_id ? updated : x)));
       alertsApi.summary().then(setSum).catch(() => {});
       window.dispatchEvent(new Event("amiri:alerts"));
-      setAsking(null); setNote("");
+      if (curId.current === a.alert_id) { setAsking(null); setNote(""); }  // the prompt now belongs to another alert: leave it
       toast({ ack: "Acknowledged: your team can see you're on it", resolve: "Resolved", reopen: "Back on the review list" }[action]);
     } catch (e) { toast(e instanceof ApiError ? e.full : String(e)); }
     finally { setBusy(false); }
@@ -168,6 +171,7 @@ export function AlertsPage() {
   const article = cur ? ev?.findings.flatMap(f => f.evidence?.headlines ?? []).find(h => h.url && (!cur.top_finding || h.title === cur.top_finding)) : undefined;
   const singleLevel = queue ? new Set(queue.map(a => a.level)).size <= 1 : false;
   const activeFilterCount = (show !== "new" ? 1 : 0) + (team ? 1 : 0) + (levelFilter ? 1 : 0) + (query.trim() ? 1 : 0) + (eventFilter ? 1 : 0);
+  const mobDetail = mobOpen && !!queue?.length;  // an empty queue has no inspector: keep the filters reachable
   const statusLabels: Record<Show, string> = { all: "All", new: "To review", acknowledged: "Acknowledged", resolved: "Resolved" };
   const resetFilters = () => {
     setSp(prev => {
@@ -193,7 +197,7 @@ export function AlertsPage() {
       {err != null && <LoadError error={err} onRetry={load} what="the alerts" />}
 
       {/* Mobile compact filter bar (<=900px): keeps 4 alerts visible above the fold */}
-      {!mobOpen && (
+      {!mobDetail && (
         <div className="eos-mob-fbar">
           <div className="eos-mob-fchips">
             <span className="chip" style={{ fontWeight: 600 }}>{statusLabels[show]} ({nAt(show) ?? 0})</span>
@@ -215,7 +219,7 @@ export function AlertsPage() {
       )}
 
       {/* Desktop inline filter bar */}
-      <div className={`eos-filterbar eos-alerts-fbar-desk${mobOpen ? " eos-mob-hide" : ""}`} style={{ marginBottom: 0 }}>
+      <div className={`eos-filterbar eos-alerts-fbar-desk${mobDetail ? " eos-mob-hide" : ""}`} style={{ marginBottom: 0 }}>
         <SearchInput value={query} onChange={setQuery} ariaLabel="Search alerts" placeholder="Search alerts, products, teams, or events…" count={queue?.length} />
         <SelectMenu label="Filter by severity" value={levelFilter} onChange={setLevelFilter} options={[
           { value: "", label: "All severities" },
@@ -350,6 +354,9 @@ export function AlertsPage() {
                   </div>
                 </div>
 
+                {cur.status === "acknowledged" && <p className="small"><b>{person(cur.acknowledged_by)}</b> is on it{cur.acknowledged_at ? `, ${ago(cur.acknowledged_at, now)}` : ""}{cur.ack_note ? `: “${cur.ack_note}”` : ""}</p>}
+                {cur.status === "resolved" && <p className="small">Resolved by <b>{isAgent(cur.resolved_by) ? AGENT : person(cur.resolved_by)}</b>{cur.resolved_at ? `, ${ago(cur.resolved_at, now)}` : ""}{cur.resolved_note ? `: “${cur.resolved_note}”` : ""}</p>}
+
                 {asking && (
                   <div className="eos-focal row wrap" style={{ gap: 8 }}>
                     <input className="input" style={{ flex: 1, minWidth: 200 }} autoFocus value={note} onChange={e => setNote(e.target.value)}
@@ -447,7 +454,7 @@ export function AlertsPage() {
                 <Fold summary={`Audit trail (${runs(cur).length} entries)`} defaultOpen={false} bodyClassName="eos-fold-bd col">
                   <div className="col" style={{ gap: 4 }}>
                     {runs(cur).map((r, i) => (
-                      <div key={i}><b>{CHANGE[r.change] ?? r.change}{r.n > 1 ? ` (${r.n}×)` : ""}</b> · <span className="mono">{dayTime(r.at)}</span>{r.by ? ` · ${person(r.by)}` : ""}</div>
+                      <div key={i}><b>{CHANGE[r.change] ?? r.change}{r.n > 1 ? ` (${r.n}×)` : ""}</b> · <span className="mono">{dayTime(r.at)}</span>{r.by ? ` · ${person(r.by)}` : ""}{r.text ? <div className="small muted">{r.text}</div> : null}</div>
                     ))}
                   </div>
                 </Fold>

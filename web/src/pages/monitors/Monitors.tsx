@@ -350,7 +350,7 @@ export function MonitorsPage() {
                   </section>
                 ))}
               </div>
-              {activeRow && <MonitorInspector row={activeRow} findings={mine(found[activeRow.monitor_id], activeRow)} onChange={load} />}
+              {activeRow && <MonitorInspector key={activeRow.monitor_id} row={activeRow} findings={mine(found[activeRow.monitor_id], activeRow)} onChange={load} />}
             </div>
           )}
           <div style={{ display: "none" }}>{next}{common.every}{line.name}{yours.length}{paused.length}{retired.length}</div>

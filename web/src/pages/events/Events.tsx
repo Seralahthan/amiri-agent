@@ -13,7 +13,7 @@ import { CheckBrief } from "../../components/checks";
 import { FlowFilter } from "../../components/FlowFilter";
 import { Icon } from "../../components/Icon";
 import { Empty, useNow, useRole, useToast, InlineSkeleton, LoadError } from "../../components/ui";
-import { ago, dayTime, until, plural } from "../../format";
+import { ago, dayTime, placeName, until, plural } from "../../format";
 import { count, eventTitle, impactText, longWhen, metricWords, onDay, productTypeLabel, sizeTiming, sourceInfo, themeLabel } from "../../plain";
 import { useRecentFindings } from "../findings/recent";
 import { EventsFindingsTabs } from "../../components/WorkspaceTabs";
@@ -219,7 +219,7 @@ export function EventsPage() {
       if (show !== "all" && e.status !== show) return false;
       if (toneFilter && e.tone !== toneFilter) return false;
       if (!q) return true;
-      const hay = [title(e), ...e.themes.map(themeLabel), ...e.places].join(" ").toLowerCase();
+      const hay = [title(e), ...e.themes.map(themeLabel), ...e.places, ...e.places.map(placeName)].join(" ").toLowerCase();
       return hay.includes(q);
     }).sort((a, b) => sort === "impacts" ? b.hypotheses - a.hypotheses || (a.anchor < b.anchor ? 1 : -1) : (a.anchor < b.anchor ? 1 : -1));
   }, [shown, show, sort, query, toneFilter]);
