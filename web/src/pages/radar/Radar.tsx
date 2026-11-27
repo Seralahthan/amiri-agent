@@ -7,10 +7,12 @@ import { inst } from "../../api/institutions";
 import { gb, radarApi, scheduleText, type RadarStatus, type RadarStory } from "../../api/radar";
 import { ChipFilter } from "../../components/FlowFilter";
 import { Icon } from "../../components/Icon";
-import { HowItWorks, PageHeader } from "../../components/blocks";
+import { SearchInput } from "../../components/SearchInput";
+import { SelectMenu } from "../../components/SelectMenu";
 import { Banner, Empty, ListSkeleton, LoadError, useNow, useRole, useToast } from "../../components/ui";
 import { ago, dateKey, day, dayTime, person, placeName, placeOrder, plural, when } from "../../format";
 import { eventTitle, undated } from "../../plain";
+import { SurveillanceTabs } from "../../components/WorkspaceTabs";
 import { themeText } from "../events/Events";
 import "../../styles/radar.css";
 
@@ -32,7 +34,6 @@ function Outcome({ s }: { s: RadarStory }) {
 
 /** The chosen story: what happened, why it matters (or why it was held back), what to do, and the sources on request. */
 function Reader({ s, place, act, admin }: { s: RadarStory; place: (p: string) => string; act: (f: () => Promise<RadarStory>, m: string) => void; admin: boolean }) {
-  const [more, setMore] = useState(false);  // kept across stories: once a reader wants the detail, they get it on every story
   const [src, setSrc] = useState(false);
   const box = useRef<HTMLElement>(null);
   useLayoutEffect(() => { setSrc(false); box.current?.scrollTo(0, 0); }, [s.story_id]);  // each story opens at its top
@@ -48,19 +49,22 @@ function Reader({ s, place, act, admin }: { s: RadarStory; place: (p: string) =>
       {s.status === "dismissed" && <><span className="rd-out quiet">by {person(s.dismissed_by)}{s.dismissed_at ? ` ${ago(s.dismissed_at)}` : ""}</span>
         <button className="btn btn--sm btn--ghost" type="button" onClick={() => act(() => radarApi.restore(s.story_id), "Restored")}>Restore</button></>}
     </div>
-    <p className="rd-why"><b>{s.status === "sent" ? "Why it matters to you." : "Why Radar held it back."}</b> {s.why}</p>
-    <button type="button" className="rd-link" aria-expanded={more} onClick={() => setMore(o => !o)}>
-      <Icon name="chevron" className={`ico16 ${more ? "rot" : ""}`} />{more ? "Less about this story" : "What happened, places and sources"}</button>
-    {more && <div className="rd-more">
-      <p className="rd-sum">{s.summary}</p>
-      <p className="rd-meta">{placeOrder(s.places).map(place).join(" · ")}{s.themes.length ? <> · <span className="rd-themes">{s.themes.map(t => themeText(t)).join(" · ")}</span></> : null}</p>
-      <p className="rd-meta">{plural(s.publishers, "publisher")} · {os.slice(0, 3).join(", ")}{os.length > 3 ? ` and ${os.length - 3} more` : ""}
-        {s.runs_seen > 1 ? ` · seen in ${s.runs_seen} reads` : ""}{s.development_of ? " · continues an earlier story" : ""}{admin ? ` · Radar score ${s.score}` : ""}</p>
-      {s.monitor_hint && <p className="rd-meta">Your monitor <Link to={`/monitors/${s.monitor_hint.monitor_id}`}>{s.monitor_hint.name}</Link> also covers these places.</p>}
-      <button type="button" className="rd-link" aria-expanded={src} onClick={() => setSrc(o => !o)}>
-        <Icon name="chevron" className={`ico16 ${src ? "rot" : ""}`} />{src ? "Hide the headlines" : `Show the ${plural(s.headlines.length, "headline")}`}</button>
-      {src && <ul className="rd-heads">{s.headlines.map((h, i) => <li key={i}>
-        {h.url ? <a href={h.url} target="_blank" rel="noreferrer">{h.title}</a> : h.title}<span>{h.outlet ?? ""} · {dayTime(h.published_at)}</span></li>)}</ul>}
+    <div className="eos-ai" style={{ margin: "12px 0" }}>
+      <div className="eos-ai-hd"><span className="eos-spark" aria-hidden="true">✦</span>Radar Agent · {REL[s.relevance]}{admin ? ` · score ${s.score}` : ""} · {s.status === "sent" ? "Why it matters to you" : "Why Radar held it back"}</div>
+      <div className="eos-ai-bd">{s.why}</div>
+      {s.summary && <div className="eos-ai-meta"><span>{s.summary}</span></div>}
+    </div>
+    <p className="rd-meta" style={{ marginBottom: 10 }}>{placeOrder(s.places).map(place).join(" · ")}{s.themes.length ? <> · <span className="rd-themes">{s.themes.map(t => themeText(t)).join(" · ")}</span></> : null}</p>
+    {s.monitor_hint && <p className="rd-meta" style={{ marginBottom: 10 }}>Your monitor <Link to={`/monitors/${s.monitor_hint.monitor_id}`}>{s.monitor_hint.name}</Link> also covers these places.</p>}
+    {s.headlines.length > 0 && <div style={{ borderTop: "1px solid var(--hairline)", paddingTop: 12 }}>
+      <div className="row" style={{ justifyContent: "space-between", marginBottom: 6 }}>
+        <span className="label">Underlying news headlines ({plural(s.headlines.length, "source")})</span>
+        <span className="small muted">{os.slice(0, 3).join(", ")}{os.length > 3 ? ` +${os.length - 3}` : ""}</span>
+      </div>
+      <ul className="rd-heads">{(src ? s.headlines : s.headlines.slice(0, 4)).map((h, i) => <li key={i}>
+        {h.url ? <a href={h.url} target="_blank" rel="noreferrer">{h.title}</a> : h.title}<span>{h.outlet ?? ""} · {dayTime(h.published_at)}</span></li>)}</ul>
+      {s.headlines.length > 4 && <button type="button" className="rd-link" aria-expanded={src} onClick={() => setSrc(o => !o)}>
+        <Icon name="chevron" className={`ico16 ${src ? "rot" : ""}`} />{src ? "Show fewer headlines" : `Show all ${s.headlines.length} headlines`}</button>}
     </div>}
   </article>;
 }
@@ -74,9 +78,10 @@ export function RadarPage() {
   const [items, setItems] = useState<RadarStory[] | null>(null);
   const [names, setNames] = useState<Record<string, string | null>>({});
   const [scope, setScope] = useState<Scope | null>(null);
-  const [instName, setInstName] = useState("your institution");
   const [show, setShow] = useState<Show>("all");
   const [where, setWhere] = useState("");
+  const [query, setQuery] = useState("");
+  const [relFilter, setRelFilter] = useState("");
   const [sel, setSel] = useState<string | null>(null);
   const [upto, setUpto] = useState(2);  // days loaded: the latest plus one ahead to scroll to; reaching the last brings in the next
   const [open, setOpen] = useState<Set<string>>(new Set());  // days whose "more" is unfolded
@@ -103,7 +108,7 @@ export function RadarPage() {
   useEffect(() => {
     api<{ institution_id: string; profile: boolean }>("/api/v1/installation").then(i => {
       if (!i.profile) return;
-      inst.profile(i.institution_id).then(p => { setNames(p.place_names ?? {}); setInstName(p.institution.name); }).catch(() => {});
+      inst.profile(i.institution_id).then(p => { setNames(p.place_names ?? {}); }).catch(() => {});
       inst.context(i.institution_id).then(c => setScope(c.radar_scope)).catch(() => {});
     }).catch(() => {});
   }, []);
@@ -129,7 +134,7 @@ export function RadarPage() {
 
   const all = useMemo(() => [...(items ?? [])].sort((a, b) => b.last_seen_at.localeCompare(a.last_seen_at)
     || Number(b.status === "sent") - Number(a.status === "sent") || b.score - a.score), [items]);
-  const inPlace = all.filter(s => !where || s.places.includes(where));
+  const inPlace = all.filter(s => (!where || s.places.includes(where)) && (!relFilter || s.relevance === relFilter) && (!query.trim() || `${s.title} ${s.why} ${s.summary} ${s.headlines.map(h => `${h.title} ${h.outlet ?? ""}`).join(" ")}`.toLowerCase().includes(query.trim().toLowerCase())));
   const shown = inPlace.filter(s => show === "all" || s.status === show);
   // one card per day, newest first; a filter starts from the latest day it matches, so it reaches back as far as it needs to
   const dk = (s: RadarStory) => dateKey(s.last_seen_at);
@@ -176,7 +181,7 @@ export function RadarPage() {
   const fit = useCallback(() => {
     const o = listRef.current;
     if (!o || settle.current) return;
-    if (matchMedia("(max-width: 1000px)").matches) { o.style.height = ""; return; }  // stacked layout: the CSS height (70vh) holds
+    if (matchMedia("(max-width: 1100px)").matches) { o.style.height = ""; return; }  // stacked layout: the CSS height (70vh) holds
     const top = o.getBoundingClientRect().top, cards = [...o.querySelectorAll<HTMLElement>(".rd-card")];
     // the day whose start is nearest the top (a short last day can stop short of it until the next one loads)
     const gap = (c: HTMLElement) => Math.abs(c.getBoundingClientRect().top - top);
@@ -213,21 +218,22 @@ export function RadarPage() {
   const sched = st ? scheduleText(st.every_minutes, st.run_at) : "";
   const next = st ? (new Date(st.next_run_at) <= now ? "due now" : when(st.next_run_at, now)) : "";
   return (
-    <div className="page rd">
-      <PageHeader eyebrow={st ? `Reads world news ${sched}${lr ? ` · last read ${ago(lr.finished_at ?? lr.created_at, now)}` : ""}${st.connected ? ` · next ${next}` : ""}` : undefined}
-        title={!st ? "Radar" : !lr ? "Radar hasn't read the news yet"
-          : <>Radar read <span className="rd-n read">{(lr.considered ?? 0).toLocaleString()} articles</span> and sent <span className="rd-n ok">{lr.sent ?? 0}</span> to you</>}
-        status={lr ? <>{lr.stories ?? 0} stories touched your footprint; {lr.sent ?? 0} {lr.sent === 1 ? "was" : "were"} worth investigating, the rest are kept below.</> : undefined}
-        cta={<>
-          <button className="btn btn--primary btn--lg" type="button" disabled={!!cant} title={cant ?? undefined} onClick={runNow}>
-            <Icon name={running ? "refresh" : "radar"} />{running ? "Checking…" : "Check now"}</button>
-          <span className="muted">{st?.connected ? `${left} of ${st.run_now.limit} left today` : "once Radar is connected"}</span>
-          <button className="rd-link" type="button" aria-expanded={details} onClick={() => setDetails(o => !o)}>
-            {scope ? `What it watches: ${plural(scope.places.length, "place")}${scope.actors.length ? `, ${plural(scope.actors.length, "name")}` : ""}` : "Run details"}</button>
-        </>}
-        actions={<Link className="btn" to="/institution/agents">What Radar reads from your profile</Link>}
-        help={<HowItWorks><p>Radar reads the world's news for anything that touches {instName}, using the places and names in your profile. What matters goes to the investigation like any other finding; the rest is kept here, and you can still send it.</p>
-          {st && <p>Prototype limits: Radar reads the news {sched}, and you can Check now {st.run_now.limit} times a day. English news only.</p>}</HowItWorks>} />
+    <div className="eos-pad rd">
+      <SurveillanceTabs right={<>
+        <button className="btn btn--primary btn--sm" type="button" disabled={!!cant} title={cant ?? undefined} onClick={runNow}>
+          <Icon name={running ? "refresh" : "radar"} />{running ? "Checking…" : `Check now (${left}/${st?.run_now.limit ?? 5})`}
+        </button>
+        <button className="btn btn--ghost btn--sm" type="button" aria-expanded={details} onClick={() => setDetails(o => !o)}>
+          {scope ? `✦ Watches: ${plural(scope.places.length, "place")}, ${plural(scope.actors.length, "name")} ▾` : "Run details ▾"}
+        </button>
+      </>} />
+      <div className="eos-hd">
+        <div>
+          <div className="label">{st ? `World Radar · ${sched}${lr ? ` · last ${ago(lr.finished_at ?? lr.created_at, now)}` : ""}${st.connected ? ` · next ${next}` : ""}` : "World Radar"}</div>
+          <h1>{!st ? "World Radar" : !lr ? "Radar hasn't read the news yet"
+            : <>Radar read <span className="eos-h-ok mono">{(lr.considered ?? 0).toLocaleString()}</span> articles and sent <span className="eos-h-ok">{lr.sent ?? 0}</span></>}</h1>
+        </div>
+      </div>
 
       <div className="banners">
         {err != null && <LoadError error={err} onRetry={load} what="Radar" />}
@@ -250,11 +256,27 @@ export function RadarPage() {
         <p className="muted">Select a place to see why it's watched. These come from your profile: <Link to="/institution/agents">what Radar reads from your profile</Link>.</p>
       </div>}
 
-      <div className="rd-filters">
+      {lr && <div className="eos-ledger" style={{ marginBottom: 14 }}>
+        <div className="eos-ledger-cell"><span className="eos-l-step">Articles Read</span><span className="eos-l-val">{(lr.considered ?? 0).toLocaleString()}</span><span className="eos-l-meta">Last sweep {ago(lr.finished_at ?? lr.created_at, now)}</span></div>
+        <div className="eos-ledger-cell"><span className="eos-l-step">Matched Footprint</span><span className="eos-l-val">{lr.shortlisted ?? "—"}</span><span className="eos-l-meta">{scope ? `${plural(scope.places.length, "place")}, ${plural(scope.actors.length, "name")}` : "Profile scope"}</span></div>
+        <div className="eos-ledger-cell"><span className="eos-l-step">Grouped Stories</span><span className="eos-l-val">{lr.stories ?? 0}</span><span className="eos-l-meta">Deduplicated across outlets</span></div>
+        <div className="eos-ledger-cell"><span className="eos-l-step">Sent to Investigate</span><span className="eos-l-val" style={{ color: "var(--accent-ink)" }}>{lr.sent ?? 0}</span><span className="eos-l-meta">Next sweep {next || "scheduled"}</span></div>
+      </div>}
+
+      <div className="eos-filterbar">
+        <SearchInput value={query} onChange={v => { refilter(); setQuery(v); }} ariaLabel="Search Radar stories" placeholder="Search stories, headlines, or outlets…" count={shown.length} />
+        <SelectMenu label="Filter by relevance" value={relFilter} onChange={v => { refilter(); setRelFilter(v); }} options={[
+          { value: "", label: "Any relevance" },
+          { value: "high", label: "High relevance" },
+          { value: "medium", label: "Medium relevance" },
+          { value: "low", label: "Low relevance" },
+        ]} />
+        {placesSeen.length > 1 && <SelectMenu label="Filter by place" value={where} onChange={v => { refilter(); setWhere(v); }} options={[
+          { value: "", label: `All places (${placesSeen.length})` },
+          ...placesSeen.map(p => ({ value: p, label: place(p) })),
+        ]} />}
         <ChipFilter label="Which stories" value={show} onChange={k => { refilter(); setShow(k); }}
-          options={SHOW.map(([key, label]) => ({ key, label, count: count(key) }))}
-          after={placesSeen.length > 1 && <select className="ff-sel" aria-label="Filter by place" data-on={where ? "" : undefined} value={where} onChange={e => { refilter(); setWhere(e.target.value); }}>
-            <option value="">All places</option>{placesSeen.map(p => <option key={p} value={p}>{place(p)}</option>)}</select>} />
+          options={SHOW.map(([key, label]) => ({ key, label, count: count(key) }))} />
       </div>
 
       {items === null ? (err == null && <ListSkeleton rows={4} />)
@@ -262,15 +284,17 @@ export function RadarPage() {
             actions={show === "all" && !st?.connected ? <Link className="btn" to="/institution/agents">See what Radar will read</Link> : undefined}>
             {show === "all" && !where ? (st?.connected ? "Radar hasn't found anything touching your footprint yet. Check now runs it at once." : admin ? "Connect the Radar agent (RADAR_URL) and it starts reading the news." : "Radar starts reading the news once your Platform Admin connects it.") : "No stories match these filters."}</Empty>
         : <div className="rd-split">
-          <nav className="rd-index" aria-label="Stories">
-            <ol ref={listRef} className={single.current ? "snap" : undefined} onKeyDown={keys} onScroll={scrolled} onMouseLeave={() => setHover(null)}>{loaded.map(d => {
+          <nav className="rd-index" aria-label="Stories" data-staging={loaded.length > 1 && (hover !== null || inView !== null) ? "true" : "false"}>
+            <ol ref={listRef} className={single.current ? "snap" : undefined} onKeyDown={keys} onScroll={scrolled} onMouseLeave={() => { clearTimeout(peek.current); setHover(null); }}>{loaded.map(d => {
               const { top, rest } = rowsOf(d), isOpen = open.has(d);
+              const focusedDay = hover ?? inView;
+              const stagingDay = loaded.length > 1 && focusedDay !== null;
               const tally = (["sent", "below", "dismissed"] as const).map(k => [rest.filter(s => s.status === k).length, k === "below" ? "held back" : k] as const).filter(([c]) => c);
-              return <li key={d} data-day={d} className={`rd-card ${d === countDay ? "on" : ""} ${isOpen ? "open" : ""}`} onMouseEnter={() => setHover(d)}>
+              return <li key={d} data-day={d} data-focused={!stagingDay || focusedDay === d ? "true" : "false"} className={`rd-card ${d === countDay ? "on" : ""} ${isOpen ? "open" : ""}`} onMouseEnter={() => setHover(d)}>
                 <span className="rd-day">{day((top[0] ?? rest[0]).last_seen_at)}</span>
                 <ol>{(isOpen ? [...top, ...rest] : top).map(s => <li key={s.story_id}>
                   <button type="button" data-id={s.story_id} className={s.status} title={s.title} aria-current={cur?.story_id === s.story_id} onClick={() => setSel(s.story_id)}
-                    onMouseEnter={() => { clearTimeout(peek.current); peek.current = window.setTimeout(() => setSel(s.story_id), 180); }}
+                    onMouseEnter={() => { clearTimeout(peek.current); peek.current = window.setTimeout(() => setSel(s.story_id), 90); }}
                     onMouseLeave={() => clearTimeout(peek.current)}>
                     <span className="rd-dot" aria-hidden="true" />
                     <span className="rd-it"><span className="rd-tt">{undated(s.title)}</span>

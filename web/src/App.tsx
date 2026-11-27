@@ -1,13 +1,16 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { Link, Navigate, NavLink, Route, Routes, useLocation } from "react-router-dom";
+import { Link, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { Icon } from "./components/Icon";
 import { Empty, isDown, PageHead, PageSkeleton, useNow, useRole, type Role } from "./components/ui";
 import { api, ME } from "./api/client";
-import { ago, fullNow, setZone, ZONE_LABEL } from "./format";
+import { barClock, setZone } from "./format";
 import { cap } from "./plain";
 import { OVERVIEW_EVENT, overviewApi, type Overview } from "./api/overview";
 import { SystemStatus } from "./components/SystemStatus";
+import { CommandPalette } from "./components/CommandPalette";
+import { TelemetryStrip } from "./components/TelemetryStrip";
 import "./styles/shell.css";
+import "./styles/enterprise-os.css";
 import { InstitutionPage, NewInstitutionPage } from "./pages/institution/InstitutionPage";
 import { SetupWizard } from "./pages/institution/SetupWizard";
 import { EventDetailPage } from "./pages/events/EventDetail";
@@ -30,27 +33,34 @@ import { SpecPage } from "./pages/spec/Spec";
 import { SpecPrintPage } from "./pages/spec/SpecPrint";
 import { alertsApi, type AlertSummary } from "./api/alerts";
 
-// The menu follows the day: what needs me, what AMIRI Agent found, what it watches, who I am, and the what-if tool.
+// Enterprise Risk OS V2.2 navigation: Risk Workspace, Governance, and Try it out
 const GROUPS: [string, string[]][] = [
-  ["Today", ["/home", "/alerts"]],
-  ["What it found", ["/events", "/findings"]],
-  ["What it watches", ["/radar", "/monitors", "/series"]],
-  ["Your institution", ["/institution", "/spec"]],
-  ["Try it", ["/studio"]],
+  ["Risk Workspace", ["/home", "/alerts", "/events", "/monitors"]],
+  ["Governance", ["/institution", "/spec"]],
+  ["Try it out", ["/studio"]],
+];
+
+const ADMIN_GROUPS: [string, string[]][] = [
+  ["Platform Admin", ["/admin/data", "/institution", "/spec", "/admin/settings"]],
+  ["Try it out", ["/studio"]],
 ];
 
 const NAV: Record<Role, [string, string, string][]> = {
   risk_manager: [
-    ["home", "Overview", "/home"], ["alert", "Alerts", "/alerts"], ["search", "Findings", "/findings"], ["events", "Events", "/events"],
-    ["radar", "Radar", "/radar"], ["monitor", "Monitors", "/monitors"], ["series", "Market series", "/series"],
-    ["bank", "Institution", "/institution"], ["studio", "Scenario Studio", "/studio"], ["book", "Metrics Spec", "/spec"],
+    ["home", "Overview", "/home"],
+    ["alert", "Alerts", "/alerts"],
+    ["events", "Events & Findings", "/events"],
+    ["radar", "Surveillance", "/monitors"],
+    ["bank", "Institution", "/institution"],
+    ["studio", "Scenario Studio", "/studio"],
+    ["book", "Metrics Spec", "/spec"],
   ],
   platform_admin: [
-    ["health", "Health", "/admin/health"], ["usage", "Usage", "/admin/usage"], ["cost", "Costs", "/admin/costs"],
-    ["data", "Data connections", "/admin/data"], ["series", "Market series", "/series"], ["bank", "Institution", "/institution"],
-    ["jobs", "Schedules and queues", "/admin/jobs"], ["studio", "Scenario Studio", "/studio"],
-    ["users", "Users and roles", "/admin/users"], ["audit", "Audit log", "/admin/audit"], ["settings", "Settings", "/admin/settings"],
+    ["data", "Data Connections", "/admin/data"],
+    ["bank", "Institution Profile", "/institution"],
+    ["studio", "Scenario Studio", "/studio"],
     ["book", "Metrics Spec", "/spec"],
+    ["settings", "Settings", "/admin/settings"],
   ],
 };
 export interface Installation {
@@ -83,11 +93,11 @@ function NeedsInstitution({ title, what, children }: { title: string; what: stri
 const BUILT = new Set(["/home", "/events", "/radar", "/monitors", "/series", "/studio", "/alerts", "/institution", "/admin/data", "/admin/settings", "/spec", "/findings"]);
 
 function useTheme() {
-  const [theme, setTheme] = useState<string | null>(() => { try { return localStorage.getItem("amiri.theme"); } catch { return null; } });
+  const [theme, setTheme] = useState<string>(() => { try { return localStorage.getItem("amiri.theme") || "light"; } catch { return "light"; } });
   useEffect(() => {
-    if (theme) document.documentElement.dataset.theme = theme; else delete document.documentElement.dataset.theme;
+    document.documentElement.dataset.theme = theme;
   }, [theme]);
-  const dark = theme ? theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  const dark = theme === "dark";
   const toggle = () => {
     const next = dark ? "light" : "dark";
     setTheme(next);
@@ -96,17 +106,20 @@ function useTheme() {
   return { dark, toggle };
 }
 
-/** The top bar's status, from what the Overview call already says: green only when updates run and prices are fresh. */
-function pulse(o: Overview | null, now: Date, down: boolean): { tone: "ok" | "warn" | "off"; word: string; why: string } | null {
-  if (down) return { tone: "off", word: "No answer", why: "AMIRI Agent didn't answer the last check. It tries again every minute." };
-  if (!o) return null;
-  if (o.first_run || !o.services) return { tone: "off", word: "Not watching yet", why: "Set up an institution and AMIRI Agent starts watching for it." };
-  const t = o.services.tick;
-  if (!t.ok) return { tone: "off", word: "Paused", why: t.last_at ? `Updates are late: they last ran ${ago(t.last_at, now)}.` : "Updates haven't run yet, so no news or prices arrive." };
-  const late = (o.markets ?? []).filter(m => m.state === "stale");
-  if (late.length) return { tone: "warn", word: "Prices late", why: `Updates run, but ${late.map(m => m.name).join(", ")} ${late.length === 1 ? "hasn't" : "haven't"} updated${late[0].state_reason ? `: ${late[0].state_reason.replace(/^No new bar since (.+?) \(.*$/, "no new price since $1")}` : ""}.` };
-  return { tone: "ok", word: "Live", why: `Updates ran ${t.last_at ? ago(t.last_at, now) : "recently"}; prices are up to date.` };
-}
+const ROUTE_TITLES: [string, string][] = [
+  ["/home", "Overview"],
+  ["/alerts", "Alerts"],
+  ["/events", "Events"],
+  ["/findings", "Findings"],
+  ["/monitors", "Monitors"],
+  ["/radar", "Radar"],
+  ["/series", "Market Series"],
+  ["/institution", "Institution"],
+  ["/studio", "Scenario Studio"],
+  ["/spec", "Metrics Spec"],
+  ["/admin/data", "Data Connections"],
+  ["/admin/settings", "Settings"],
+];
 
 /** Each page's heading becomes the tab title; after a navigation focus moves to the page and a screen reader
  *  hears where it is (a single-page app does neither by itself). */
@@ -115,11 +128,14 @@ function useRouteA11y(): string {
   const first = useRef(true);
   const [said, setSaid] = useState("");
   useEffect(() => {
+    const fallback = ROUTE_TITLES.find(([p]) => pathname === p || pathname.startsWith(`${p}/`))?.[1] ?? "";
+    if (fallback) document.title = `${fallback} · AMIRI Agent`;
     const name = () => {
       if (pathname === "/home") return "Overview";
       const h = document.querySelector("main h1")?.cloneNode(true) as HTMLElement | undefined;  // the heading without its badges
       h?.querySelectorAll(".badge").forEach(b => b.remove());
-      return (h?.textContent ?? "").replace(/\s+/g, " ").trim();
+      const text = (h?.textContent ?? "").replace(/\s+/g, " ").trim();
+      return text || fallback;
     };
     // a table wider than its box scrolls sideways: it must be reachable and named for keyboard users
     const scrollers = () => document.querySelectorAll<HTMLElement>(".tblwrap").forEach(el => {
@@ -133,8 +149,8 @@ function useRouteA11y(): string {
       const m = document.querySelector<HTMLElement>("main");
       if (m) { if (!hash) m.scrollTop = 0; m.focus({ preventScroll: true }); }  // a #link: the page scrolls to it itself
     }, 250);
-    const t2 = setTimeout(() => { set(); scrollers(); }, 1500);  // headings that wait for data (an event's or a monitor's name)
-    const t3 = setTimeout(scrollers, 4000);
+    const t2 = setTimeout(() => { set(); scrollers(); }, 1200);  // headings that wait for data (an event's or a monitor's name)
+    const t3 = setTimeout(scrollers, 3500);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [pathname]);
   return said;
@@ -190,14 +206,40 @@ function Installed() {
   return <InstallationCtx.Provider value={inst}><Frame inst={inst} /></InstallationCtx.Provider>;
 }
 
+function useProjectorScale() {
+  const [projector, setProjector] = useState<boolean>(() => {
+    try { return localStorage.getItem("amiri.scale") === "projector"; } catch { return false; }
+  });
+  useEffect(() => {
+    if (projector) document.documentElement.dataset.scale = "projector";
+    else delete document.documentElement.dataset.scale;
+  }, [projector]);
+  const toggle = () => {
+    const next = !projector;
+    setProjector(next);
+    try { localStorage.setItem("amiri.scale", next ? "projector" : "standard"); } catch { /* private mode */ }
+  };
+  return { projector, toggle };
+}
+
 function Frame({ inst }: { inst: Installation }) {
   const { role, setRole } = useRole();
   const { dark, toggle: toggleTheme } = useTheme();
+  const { projector, toggle: toggleProjector } = useProjectorScale();
+  const [cmdOpen, setCmdOpen] = useState(false);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setCmdOpen(o => !o); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const now = useNow(30_000);
   const nav = NAV[role].filter(([, , to]) => BUILT.has(to));  // a page that isn't built isn't offered
   const said = useRouteA11y();
   const [menu, setMenu] = useState(false);
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   useEffect(() => setMenu(false), [pathname]);
   useEffect(() => {
     if (!menu) return;
@@ -224,8 +266,6 @@ function Frame({ inst }: { inst: Installation }) {
     load();
     return () => { clearInterval(t); window.removeEventListener("amiri:installation", load); window.removeEventListener(OVERVIEW_EVENT, heard); };
   }, []);
-  const live = pulse(ov, now, down);
-  const [why, setWhy] = useState(false);
   const [alerts, setAlerts] = useState<AlertSummary | null>(null);
   useEffect(() => {  // the menu badge: alerts to review
     const load = () => alertsApi.summary().then(setAlerts).catch(() => {});
@@ -240,58 +280,81 @@ function Frame({ inst }: { inst: Installation }) {
       <header className="appbar">
         <button className="btn btn--ghost btn--icon menubtn" type="button" aria-label="Menu" aria-expanded={menu} aria-controls="sidenav"
           onClick={() => setMenu(m => !m)}><Icon name={menu ? "x" : "menu"} /></button>
-        <Link className="brand" to="/home" aria-label="AMIRI Agent home">
+        <Link className="brand eos-mob-brand" to="/home" aria-label="AMIRI Agent home">
           <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#0F3D2E" /><path d="M9.2 25 15 7h2l5.8 18h-3.1L16 13.1 12.3 25z" fill="#F1F5EC" /><rect x="15.4" y="13.5" width="1.2" height="10" fill="#F05A28" /><rect x="14.2" y="16" width="3.6" height="5.2" fill="#F05A28" /></svg>
           <b>AMIRI Agent</b>
-          <span className="inst">{inst.name ?? (inst.unreachable ? "" : "No institution profile yet")}</span>
         </Link>
-        {/* why it says Paused or Prices late: a click, a tap or keyboard focus shows it, not a hover-only tooltip */}
-        <span className="worldwrap">
-          <button type="button" className={`worldpill${live ? ` is-${live.tone}` : ""}`} aria-expanded={why} aria-describedby="world-why"
-            onClick={() => setWhy(o => !o)} onBlur={() => setWhy(false)} onKeyDown={e => e.key === "Escape" && setWhy(false)}>
-            <span className="dot" aria-hidden="true" />{live && <b className="wword">{live.word}</b>}<span className="wtxt">{fullNow(now)} {ZONE_LABEL}</span>
-          </button>
-          <span id="world-why" className={`world-why${why ? " open" : ""}`}>{live ? `${live.why} ` : ""}Times in {ZONE_LABEL}.</span>
-        </span>
-        <span className="spacer" />
-        <span className="seg" role="group" aria-label="View as">
-          <button type="button" aria-pressed={role === "risk_manager"} onClick={() => setRole("risk_manager")}>Risk Manager</button>
-          <button type="button" aria-pressed={role === "platform_admin"} onClick={() => setRole("platform_admin")}>Platform Admin</button>
-        </span>
+        <button type="button" className="eos-cmd-btn" onClick={() => setCmdOpen(true)} aria-label="Search AMIRI Agent">
+          <Icon name="search" />
+          <span>Search alerts, monitors, symbols…</span>
+          <span className="eos-kbd">⌘K</span>
+        </button>
+        <TelemetryStrip ov={ov} now={now} down={down} />
+        {(() => {
+          const clk = barClock(now);
+          return (
+            <time
+              className="eos-clock"
+              dateTime={now.toISOString()}
+              title={`Institution local time (${inst.time_zone})`}
+              aria-label={`${clk.date}, ${clk.time} ${clk.zone}`}
+            >
+              <span className="eos-clock-date">{clk.date}</span>
+              <span className="eos-clock-dot" aria-hidden="true">·</span>
+              <span className="eos-clock-time">{clk.time}</span>
+              <span className="eos-clock-zone">{clk.zone}</span>
+            </time>
+          );
+        })()}
         <button className="btn btn--ghost btn--icon themebtn" type="button" aria-label={dark ? "Switch to light" : "Switch to dark"} onClick={toggleTheme}><Icon name={dark ? "sun" : "moon"} /></button>
       </header>
+      <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} ov={ov} projector={projector} onToggleProjector={toggleProjector} />
       {menu && <div className="scrim" onClick={() => setMenu(false)} />}
       <div className="body">
         <aside className="side" id="sidenav" aria-label="Menu" data-open={menu}>
+          <div className="eos-side-top">
+            <Link className="eos-side-brand" to="/home" aria-label="AMIRI Agent home">
+              <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#0F3D2E" /><path d="M9.2 25 15 7h2l5.8 18h-3.1L16 13.1 12.3 25z" fill="#F1F5EC" /><rect x="15.4" y="13.5" width="1.2" height="10" fill="#F05A28" /><rect x="14.2" y="16" width="3.6" height="5.2" fill="#F05A28" /></svg>
+              <span className="eos-side-brand-txt">
+                <b>AMIRI Agent</b>
+                <span className="eos-side-inst">{inst.name ?? (inst.unreachable ? "" : "No institution profile yet")}</span>
+              </span>
+            </Link>
+            <SystemStatus o={ov} now={now} down={down} />
+          </div>
           <nav className="nav" aria-label="Main">
-            {role === "platform_admin" && <div className="grp label">Platform Admin</div>}
-            {(role === "risk_manager" ? GROUPS : [["", nav.map(n => n[2])] as [string, string[]]]).map(([group, paths]) => {
+            {(role === "risk_manager" ? GROUPS : ADMIN_GROUPS).map(([group, paths]) => {
               const items = nav.filter(n => paths.includes(n[2]));
               return items.length === 0 ? null : (
               <div key={group || "all"} className="navgroup">
                 {group && <div className="grp label" id={`g-${group.replace(/\W+/g, "")}`}>{group}</div>}
-            {items.map(([icon, label, to]) => (
-              <NavLink key={to} to={to}>
+            {items.map(([icon, label, to]) => {
+              const active = to === "/monitors"
+                ? pathname.startsWith("/monitors") || pathname.startsWith("/radar") || pathname.startsWith("/series")
+                : to === "/events"
+                  ? pathname.startsWith("/events") || pathname.startsWith("/findings")
+                  : pathname === to || pathname.startsWith(`${to}/`);
+              return (
+              <Link key={to} to={to} className={active ? "eos-nav-active" : undefined} aria-current={active ? "page" : undefined}>
                 <Icon name={icon} /><span>{label}</span>
                 {to === "/alerts" && alerts?.to_review ? <span className={`count ${alerts.by_level.warning ? "hot" : ""}`}>{alerts.to_review}<span className="sr"> to review</span></span> : null}
-              </NavLink>
-            ))}
+              </Link>);
+            })}
               </div>);
             })}
-            <SystemStatus o={ov} now={now} down={down} />
           </nav>
-          <div className="side-user" title={ME}>
-            <span className="avatar" aria-hidden="true">{ME[0].toUpperCase()}</span>
-            <span className="col" style={{ gap: 0, minWidth: 0 }}><b>{cap(ME.split("@")[0])}</b>
-              <span className="small muted">{role === "risk_manager" ? "Risk Manager" : "Platform Admin"}</span></span>
-          </div>
-          <div className="side-foot">
-            <span className="label">View as</span>
-            <span className="seg" role="group" aria-label="View as">
-              <button type="button" aria-pressed={role === "risk_manager"} onClick={() => setRole("risk_manager")}>Risk Manager</button>
+          <div className="eos-side-profile">
+            <div className="eos-side-user" title={ME}>
+              <span className="avatar" aria-hidden="true">{ME[0].toUpperCase()}</span>
+              <span className="col" style={{ gap: 0, minWidth: 0 }}>
+                <b>{cap(ME.split("@")[0])}</b>
+                <span className="small muted">{role === "risk_manager" ? "Risk Manager" : "Platform Admin"}</span>
+              </span>
+            </div>
+            <div className="eos-role-seg" role="group" aria-label="View as">
+              <button type="button" aria-pressed={role === "risk_manager"} onClick={() => { setRole("risk_manager"); if (pathname.startsWith("/admin/")) navigate("/home"); }}>Risk Manager</button>
               <button type="button" aria-pressed={role === "platform_admin"} onClick={() => setRole("platform_admin")}>Platform Admin</button>
-            </span>
-            <button className="btn btn--sm" type="button" onClick={toggleTheme}><Icon name={dark ? "sun" : "moon"} />{dark ? "Light theme" : "Dark theme"}</button>
+            </div>
           </div>
         </aside>
         <main className="main" id="main" tabIndex={-1}>
@@ -326,6 +389,19 @@ function Frame({ inst }: { inst: Installation }) {
           </Routes>
         </main>
       </div>
+      <nav className="eos-mobnav" aria-label="Quick navigation">
+        <Link to="/home" aria-current={pathname === "/home" ? "page" : undefined}><Icon name="home" /><span>Home</span></Link>
+        <Link to="/alerts" aria-current={pathname.startsWith("/alerts") ? "page" : undefined}>
+          <span className="eos-mobnav-ico">
+            <Icon name="alert" />
+            {alerts?.to_review ? <span className={`eos-mobnav-badge${alerts.by_level.warning ? " hot" : ""}`}>{alerts.to_review > 99 ? "99+" : alerts.to_review}</span> : null}
+          </span>
+          <span>Alerts</span>
+        </Link>
+        <Link to="/events" aria-current={pathname.startsWith("/events") || pathname.startsWith("/findings") ? "page" : undefined}><Icon name="events" /><span>Events</span></Link>
+        <Link to="/monitors" aria-current={pathname.startsWith("/monitors") || pathname.startsWith("/radar") || pathname.startsWith("/series") ? "page" : undefined}><Icon name="monitor" /><span>Watch</span></Link>
+        <Link to="/institution" aria-current={pathname.startsWith("/institution") ? "page" : undefined}><Icon name="bank" /><span>Bank</span></Link>
+      </nav>
     </div>
   );
 }

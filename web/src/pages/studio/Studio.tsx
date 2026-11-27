@@ -1,14 +1,17 @@
-// The Scenario Studio: start from a template or write your own, edit the headlines, and run it.
-import { useCallback, useEffect, useState } from "react";
+// The Scenario Studio: Master-Detail War-Game Studio (Variation 1) with priority groups, hover preview, Staging the Focus, and 21-day shock timeline.
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ApiError } from "../../api/client";
 import { studioApi, type Custom, type HeadlineIn, type Mode, type PriceMove, type Scenario, type ScenarioRow, type Simulation, type Template } from "../../api/studio";
 import { FillFromJson } from "../../components/FillFromJson";
 import { scenariosOf } from "../../components/fillJson";
+import { FlowFilter } from "../../components/FlowFilter";
 import { Icon } from "../../components/Icon";
-import { HowItWorks, PageHeader, TonePill } from "../../components/blocks";
-import { Banner, Empty, LoadError, Modal, PageHead, PageSkeleton, useToast } from "../../components/ui";
-import { dayTime, plural } from "../../format";
+import { SearchInput } from "../../components/SearchInput";
+import { SelectMenu } from "../../components/SelectMenu";
+import { TonePill } from "../../components/blocks";
+import { Banner, Empty, InlineSkeleton, LoadError, Modal, PageHead, PageSkeleton, useToast } from "../../components/ui";
+import { dayTime, plural, rampDays } from "../../format";
 
 const TAG: Record<string, string> = { fx: "currency" };  // a template's tags in words
 
@@ -85,73 +88,375 @@ function NewOwnModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+type StudioKey = { kind: "scenario"; id: string } | { kind: "template"; id: string };
+type StudioShow = "all" | "recorded" | "templates" | "saved";
+
 export function StudioPage() {
   const nav = useNavigate();
   const toast = useToast();
   const start = useStart();
   const [templates, setTemplates] = useState<Template[] | null>(null);
   const [items, setItems] = useState<ScenarioRow[] | null>(null);
+  const [details, setDetails] = useState<Record<string, Scenario>>({});
+  const [detailErr, setDetailErr] = useState<Record<string, unknown>>({});
   const [current, setCurrent] = useState<Simulation | null>(null);
   const [err, setErr] = useState<unknown>(null);
   const [own, setOwn] = useState(false);
-  const load = () => Promise.all([studioApi.templates(), studioApi.scenarios(), studioApi.current()])
+  const [query, setQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
+  const [show, setShow] = useState<StudioShow>("all");
+  const [sel, setSel] = useState<StudioKey | null>(null);
+  const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
+  const [scrollGroup, setScrollGroup] = useState<string | null>(null);
+  const hoverTimer = useRef<number>(0);
+  const scrollTimer = useRef<number>(0);
+
+  useEffect(() => () => { window.clearTimeout(hoverTimer.current); window.clearTimeout(scrollTimer.current); }, []);
+
+  const load = useCallback(() => Promise.all([studioApi.templates(), studioApi.scenarios(), studioApi.current()])
     .then(([t, s, c]) => { setTemplates(t); setItems(s); setCurrent(c); setErr(null); })
-    .catch(setErr);
-  useEffect(() => { load(); }, []);
+    .catch(setErr), []);
+  useEffect(() => { load(); }, [load]);
+
   const create = async (t: Template) => {
     if (t.template_id === "blank") { setOwn(true); return; }
     try { const s = await studioApi.create(t.template_id); nav(`/studio/${s.scenario_id}`); }
     catch (e) { toast(e instanceof ApiError ? e.full : String(e)); }
   };
-  const ready = (items ?? []).find(s => s.recorded);
-  // one primary per view: "Replay it" when there is a recording, otherwise the first template
-  const lead = ready && !current ? null : (templates ?? []).find(t => t.template_id !== "blank" && !t.unavailable)?.template_id;
+
+  const q = query.trim().toLowerCase();
+  const recordedRows = useMemo(() => (items ?? []).filter(s => !!s.recorded), [items]);
+  const savedRows = useMemo(() => (items ?? []).filter(s => !s.recorded), [items]);
+  const tplRows = useMemo(() => templates ?? [], [templates]);
+
+  const matchSc = (s: ScenarioRow) => (!q || `${s.title} ${s.template_id} ${s.intensity}`.toLowerCase().includes(q));
+  const matchTpl = (t: Template) => (!q || `${t.title} ${t.summary} ${t.tags.join(" ")}`.toLowerCase().includes(q));
+
+  const groups = useMemo(() => {
+    const out: {
+      key: "recorded" | "templates" | "saved";
+      label: string;
+      dot: string;
+      entries: ({ kind: "scenario"; row: ScenarioRow } | { kind: "template"; tpl: Template })[];
+    }[] = [];
+    const want = (k: StudioShow) => (show === "all" || show === k) && (!typeFilter || typeFilter === k);
+    if (want("recorded")) {
+      const xs = recordedRows.filter(matchSc);
+      if (xs.length) out.push({ key: "recorded", label: "Ready to replay · Instant demo", dot: "live", entries: xs.map(row => ({ kind: "scenario", row })) });
+    }
+    if (want("templates")) {
+      const xs = tplRows.filter(matchTpl);
+      if (xs.length) out.push({ key: "templates", label: "Start from a template", dot: "paused", entries: xs.map(tpl => ({ kind: "template", tpl })) });
+    }
+    if (want("saved")) {
+      const xs = savedRows.filter(matchSc);
+      if (xs.length) out.push({ key: "saved", label: "Your saved scenarios", dot: "draft", entries: xs.map(row => ({ kind: "scenario", row })) });
+    }
+    return out;
+  }, [recordedRows, tplRows, savedRows, show, typeFilter, q]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const allEntries = useMemo(() => groups.flatMap(g => g.entries), [groups]);
+  const activeEntry = useMemo(() => {
+    if (sel) {
+      const found = allEntries.find(e => (e.kind === "scenario" && sel.kind === "scenario" && e.row.scenario_id === sel.id)
+        || (e.kind === "template" && sel.kind === "template" && e.tpl.template_id === sel.id));
+      if (found) return found;
+    }
+    return allEntries[0] ?? null;
+  }, [allEntries, sel]);
+
+  // Lazily fetch & cache full scenario details when selected or hovered
+  const activeScId = activeEntry?.kind === "scenario" ? activeEntry.row.scenario_id : null;
+  useEffect(() => {
+    if (!activeScId || details[activeScId] || detailErr[activeScId]) return;
+    let live = true;
+    studioApi.scenario(activeScId).then(d => { if (live) setDetails(m => ({ ...m, [activeScId]: d })); })
+      .catch(e => { if (live) setDetailErr(m => ({ ...m, [activeScId]: e })); });
+    return () => { live = false; };
+  }, [activeScId, details, detailErr]);
+  // Try again: clearing the error lets the effect above ask for it again
+  const retryDetail = (id: string) => setDetailErr(m => { const { [id]: _, ...rest } = m; return rest; });
+
+  const ready = recordedRows[0];
+  const totalCount = recordedRows.length + tplRows.length + savedRows.length;
+  const focusedGroup = hoveredGroup ?? scrollGroup;
+  const staging = groups.length > 1 && focusedGroup !== null;
+
+  const onEntryEnter = (key: StudioKey) => {
+    window.clearTimeout(hoverTimer.current);
+    hoverTimer.current = window.setTimeout(() => setSel(key), 90);
+  };
+  const onListScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    const top = el.getBoundingClientRect().top + 36;
+    let active: string | null = groups[0]?.key ?? null;
+    el.querySelectorAll<HTMLElement>("[data-grp]").forEach(sec => {
+      if (sec.getBoundingClientRect().top <= top) active = sec.dataset.grp ?? active;
+    });
+    if (el.scrollTop > 0 && el.scrollHeight - el.scrollTop - el.clientHeight < 6) {
+      active = groups[groups.length - 1]?.key ?? active;
+    }
+    setScrollGroup(active);
+    window.clearTimeout(scrollTimer.current);
+    scrollTimer.current = window.setTimeout(() => setScrollGroup(null), 650);
+  };
+
+  const activeDetail = activeScId ? details[activeScId] : null;
+
   return (
-    <div className="page">
-      <PageHeader title="Scenario Studio" status="Try a what-if on your institution. Nothing touches your live data."
-        help={<HowItWorks><p>A scenario plays out in a sandbox: headlines arrive and prices move, and AMIRI Agent's monitors, market series and investigation respond as they would for real. You see the events it traces and the alerts each team would get.</p></HowItWorks>} />
-      {err != null && templates === null ? <LoadError error={err} onRetry={load} what="the Scenario Studio" /> : <>
-      <div className="banners"><CurrentBanner sim={current} /></div>
-      {ready && !current && <div className="card st-hero">
-        <div className="col" style={{ gap: 4, flex: 1, minWidth: 260 }}>
-          <span className="label">Watch it work</span>
-          <h2 style={{ fontSize: 19 }}>{ready.title}, in under a minute</h2>
-          <span className="small muted">A recorded run replays instantly: three weeks of headlines and prices, the events AMIRI Agent traces to your products, and the alerts each team would get.</span>
+    <div className="eos-pad" style={{ paddingBottom: 0 }}>
+      <div className="eos-hd">
+        <div>
+          <span className="label">Try It Out · Sandbox Simulation</span>
+          <h1>
+            {items === null ? "Scenario Studio" : <><span className="eos-h-ok">{plural(items.length, "scenario")}</span> ready · live data untouched</>}
+          </h1>
+          <div className="sub">Replay a recorded 21-day shock in 30 seconds or author custom headlines and FX moves to test how AMIRI's agents respond.</div>
         </div>
-        <button className="btn btn--primary btn--lg" type="button" onClick={() => start(ready.scenario_id, "replay")}><Icon name="play" />Replay it</button>
-      </div>}
-      <h2 className="mt24">Start a scenario</h2>
-      <div className="grid3 mt12">{(templates ?? []).map(t => (
-        <div key={t.template_id} className={`card st-tpl ${t.template_id === "blank" ? "own" : ""}`}><div className="bd col" style={{ gap: 8, height: "100%" }}>
-          <span className="st-ico" aria-hidden="true"><Icon name={t.template_id === "blank" ? "edit" : "series"} /></span>
-          <h3>{t.title}</h3>
-          <p className="small muted" style={{ margin: 0, flex: 1 }}>{t.summary}</p>
-          <div className="row wrap" style={{ gap: 6 }}>{t.tags.map(x => <span key={x} className="chip">{TAG[x] ?? x}</span>)}</div>
-          {t.unavailable ? <span className="small muted">Can't run here: {t.unavailable}.</span>
-            : <button className={`btn btn--sm ${t.template_id === lead ? "btn--primary" : ""}`} type="button" style={{ alignSelf: "flex-start" }} onClick={() => create(t)}>
-              <Icon name="plus" />{t.template_id === "blank" ? "Write your own" : "Use this template"}</button>}
-        </div></div>))}
+        <div className="row" style={{ gap: 8 }}>
+          <button className="btn" type="button" onClick={() => setOwn(true)}><Icon name="plus" />Write your own</button>
+          {ready && !current && (
+            <button className="btn btn--primary" type="button" onClick={() => start(ready.scenario_id, "replay")}>
+              <Icon name="play" />Replay {ready.title.length > 26 ? "recorded run" : ready.title}
+            </button>
+          )}
+        </div>
       </div>
-      <h2 className="mt24">Your scenarios</h2>
-      <div className="card mt12">{items === null ? <div className="bd small muted">…</div> : !items.length ? <Empty icon="studio" title="No scenarios yet">Start one above: from the template, or your own headlines.</Empty> : (
-        <div className="tblwrap"><table className="tbl">
-          <thead><tr><th>Scenario</th><th>Headlines</th><th>Replay</th><th>Last run</th><th><span className="sr">Actions</span></th></tr></thead>
-          <tbody>{items.map(s => (
-            <tr key={s.scenario_id} className="click" onClick={() => nav(`/studio/${s.scenario_id}`)}>
-              <td><Link className="strong" to={`/studio/${s.scenario_id}`} onClick={e => e.stopPropagation()}>{s.title}</Link>
-                <div className="sub">{s.template_id === "blank" ? "your own" : "from a template"} · made {dayTime(s.created_at)}</div></td>
-              <td className="small">{s.template_id === "blank" ? "written by you" : s.custom?.headlines ? "edited" : "as written"}</td>
-              <td className="small">{s.recorded ? <span className="row" style={{ gap: 4 }}><Icon name="check" className="ico16" />Ready to replay</span> : <span className="muted">not recorded yet</span>}</td>
-              <td className="small">{s.last_run ? dayTime(s.last_run) : "never"}</td>
-              <td onClick={e => e.stopPropagation()}><span className="row" style={{ gap: 6 }}>
-                {s.recorded
-                  ? <button className="btn btn--sm" type="button" disabled={!!current} onClick={() => start(s.scenario_id, "replay")}><Icon name="play" />Replay</button>
-                  : <button className="btn btn--sm" type="button" disabled={!!current} onClick={() => start(s.scenario_id, "live")}><Icon name="play" />Run</button>}
-                {s.recorded && <button className="btn btn--sm btn--ghost" type="button" disabled={!!current} onClick={() => start(s.scenario_id, "live")}>Run live</button>}
-              </span></td>
-            </tr>))}</tbody>
-        </table></div>)}
-      </div></>}
+
+      {err != null && templates === null ? <LoadError error={err} onRetry={load} what="the Scenario Studio" /> : <>
+        {current && <div className="banners"><CurrentBanner sim={current} /></div>}
+
+        <div className="eos-filterbar" style={{ marginBottom: 0 }}>
+          <SearchInput value={query} onChange={setQuery} ariaLabel="Search scenarios" placeholder="Search scenarios, templates, or tags…" count={allEntries.length} />
+          <SelectMenu label="Filter by type" value={typeFilter} onChange={setTypeFilter} options={[
+            { value: "", label: "All types" },
+            { value: "recorded", label: "Ready to replay" },
+            { value: "templates", label: "Templates" },
+            { value: "saved", label: "Your scenarios" },
+          ]} />
+          <FlowFilter toned label="Which scenarios" value={show} onChange={setShow}
+            all={{ key: "all", label: "All", count: totalCount }}
+            steps={[
+              { key: "recorded", label: "Ready to replay", count: recordedRows.length, state: "done" },
+              { key: "templates", label: "Templates", count: tplRows.length, state: "queued" },
+              ...(savedRows.length ? [{ key: "saved" as const, label: "Saved", count: savedRows.length }] : []),
+            ]} />
+        </div>
+
+        {templates === null || items === null ? <div className="mt12"><InlineSkeleton /></div> : allEntries.length === 0 ? (
+          <div className="mt16"><Empty icon="studio" title="No matching scenarios">Try clearing your search or filter, or write a custom scenario.</Empty></div>
+        ) : (
+          <div className="eos-split">
+            <div className="eos-list" data-staging={staging ? "true" : "false"}
+              onMouseLeave={() => { window.clearTimeout(hoverTimer.current); setHoveredGroup(null); }}
+              onScroll={onListScroll}>
+              {groups.map(g => (
+                <section key={g.key} className="eos-grp" data-grp={g.key}
+                  data-focused={!staging || focusedGroup === g.key ? "true" : "false"}
+                  onMouseEnter={() => setHoveredGroup(g.key)}>
+                  <div className="eos-grp-hd">
+                    <span className={`eos-grp-dot ${g.dot}`} aria-hidden="true" />
+                    <span>{g.label}</span>
+                    <span className="eos-grp-cnt">{g.entries.length}</span>
+                  </div>
+                  {g.entries.map(entry => {
+                    if (entry.kind === "scenario") {
+                      const s = entry.row;
+                      const isSel = activeEntry?.kind === "scenario" && activeEntry.row.scenario_id === s.scenario_id;
+                      return (
+                        <button key={`sc-${s.scenario_id}`} type="button" className="eos-row" data-selected={isSel}
+                          onClick={() => { window.clearTimeout(hoverTimer.current); setSel({ kind: "scenario", id: s.scenario_id }); }}
+                          onMouseEnter={() => onEntryEnter({ kind: "scenario", id: s.scenario_id })}>
+                          <div className="row" style={{ gap: 8 }}>
+                            <strong style={{ color: "var(--ink)" }}>{s.title}</strong>
+                            <span style={{ marginLeft: "auto" }}>
+                              {s.recorded ? <span className="badge b-ok">Recorded</span> : <span className="chip">{s.template_id === "blank" ? "Custom" : "Saved"}</span>}
+                            </span>
+                          </div>
+                          <span className="small muted">
+                            {s.template_id === "blank" ? "Written by you" : `Intensity: ${s.intensity}`} · made {dayTime(s.created_at)}
+                            {s.last_run ? ` · ran ${dayTime(s.last_run)}` : ""}
+                          </span>
+                        </button>
+                      );
+                    }
+                    const t = entry.tpl;
+                    const isSel = activeEntry?.kind === "template" && activeEntry.tpl.template_id === t.template_id;
+                    return (
+                      <button key={`tpl-${t.template_id}`} type="button" className="eos-row" data-selected={isSel}
+                        onClick={() => { window.clearTimeout(hoverTimer.current); setSel({ kind: "template", id: t.template_id }); }}
+                        onMouseEnter={() => onEntryEnter({ kind: "template", id: t.template_id })}>
+                        <div className="row" style={{ gap: 8 }}>
+                          <strong style={{ color: "var(--ink)" }}>{t.title}</strong>
+                          <span className="chip" style={{ marginLeft: "auto" }}>{t.template_id === "blank" ? "Blank" : "Template"}</span>
+                        </div>
+                        <span className="small muted">{t.summary}</span>
+                      </button>
+                    );
+                  })}
+                </section>
+              ))}
+            </div>
+
+            <div className="eos-insp">
+              {activeEntry?.kind === "scenario" && (() => {
+                const s = activeEntry.row;
+                const d = activeDetail;
+                const b = d?.built;
+                const headlineDays = new Set((b?.headlines ?? []).map(h => h.day));
+                const shockDays = b ? rampDays(b.clock.start_at, b.institution.time_zone, b.clock.steps, b.prices.off ? 0 : (b.prices.shock?.ramp_business_days ?? 0)) : new Set<number>();
+                return (
+                  <>
+                    <div className="eos-hd">
+                      <div>
+                        <div className="label">
+                          {s.recorded ? "Recorded Replay" : s.template_id === "blank" ? "Custom Scenario" : "Saved Scenario"}
+                          {b ? ` · ${b.institution.name} · ${b.prices.symbol}` : ""}
+                        </div>
+                        <h2 style={{ marginTop: 2 }}>{s.title}</h2>
+                      </div>
+                      <div className="row" style={{ gap: 8 }}>
+                        {s.recorded ? (
+                          <button className="btn btn--primary btn--sm" type="button" disabled={!!current} onClick={() => start(s.scenario_id, "replay")}>
+                            <Icon name="play" />Replay (30s)
+                          </button>
+                        ) : (
+                          <button className="btn btn--primary btn--sm" type="button" disabled={!!current} onClick={() => start(s.scenario_id, "live")}>
+                            <Icon name="play" />Run live
+                          </button>
+                        )}
+                        {s.recorded && (
+                          <button className="btn btn--sm" type="button" disabled={!!current} onClick={() => start(s.scenario_id, "live")}>Run live</button>
+                        )}
+                        <Link className="btn btn--sm btn--ghost" to={`/studio/${s.scenario_id}`}>Edit &amp; configure →</Link>
+                      </div>
+                    </div>
+
+                    {(!d || !b) && detailErr[s.scenario_id] != null ? <LoadError error={detailErr[s.scenario_id]} onRetry={() => retryDetail(s.scenario_id)} what="this scenario" />
+                      : !d || !b ? <InlineSkeleton /> : (
+                      <>
+                        <div className="eos-ai">
+                          <div className="eos-ai-hd"><span className="eos-spark" aria-hidden="true">✦</span>Sandbox Agent Pipeline · What AMIRI will trace</div>
+                          <div className="eos-ai-bd" style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                            <div>
+                              <b>Monitor Agent</b> ({b.monitor.spec.about.name}) reads <b>{plural(b.headlines.length, "simulated headline")}</b> over {b.clock.steps} days
+                              {!b.prices.off && b.prices.shock ? <> while <b>Market Series</b> injects a <b>{b.prices.shock.size_pct.toFixed(1)}% {b.prices.symbol}</b> ramp over {b.prices.shock.ramp_business_days} business days</> : null}.
+                            </div>
+                            <div>
+                              <span style={{ color: "var(--accent)", fontWeight: 700, marginRight: 6 }} aria-hidden="true">↳</span>
+                              <b>Investigation Agent</b> traces impacts across your bank's products without touching live data.
+                            </div>
+                          </div>
+                        </div>
+
+                        {b.stories.length > 0 && (
+                          <div>
+                            <div className="label" style={{ marginBottom: 8 }}>Expected Stories &amp; Tone ({b.stories.length})</div>
+                            <div className="row wrap" style={{ gap: 8 }}>
+                              {b.stories.map(st => (
+                                <span key={st.key} className="row" style={{ gap: 6, padding: "4px 10px 4px 6px", borderRadius: 99, border: "1px solid var(--hairline)", background: "var(--surface)", fontSize: 12.5 }}>
+                                  <TonePill tone={st.tone} />
+                                  <span style={{ color: st.expected ? "var(--ink)" : "var(--ink-3)" }}>{st.label}</span>
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        <div>
+                          <div className="row" style={{ justifyContent: "space-between", marginBottom: 6 }}>
+                            <span className="label">{b.clock.steps}-Day Event Injection Preview</span>
+                            <span className="small muted">Green = headlines · Red = FX shock ramp</span>
+                          </div>
+                          <div className="eos-tl-bar" aria-label="21-day simulation schedule">
+                            {Array.from({ length: b.clock.steps }, (_, idx) => {
+                              const dayNum = idx + 1;
+                              const isShock = shockDays.has(dayNum);
+                              const hasNews = headlineDays.has(dayNum);
+                              return (
+                                <span
+                                  key={dayNum}
+                                  className={`eos-tl-day${isShock ? " shock" : hasNews ? " news" : ""}`}
+                                  title={`Day ${dayNum}${hasNews ? " · headlines" : ""}${isShock ? " · FX shock ramp" : ""}`}
+                                />
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <details className="eos-fold">
+                          <summary>Simulated Headlines ({b.headlines.length})</summary>
+                          <div className="eos-fold-bd col" style={{ gap: 6 }}>
+                            {b.headlines.length === 0 ? <span className="muted">No active headlines yet.</span> : b.headlines.map(h => (
+                              <div key={h.id} style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
+                                <span className="mono small muted" style={{ flexShrink: 0 }}>Day {h.day}</span>
+                                <span style={{ color: "var(--ink)" }}>{h.title}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </details>
+
+                        <details className="eos-fold" open={d.simulations.length > 0}>
+                          <summary>Past Runs ({d.simulations.length})</summary>
+                          <div className="eos-fold-bd col" style={{ gap: 6 }}>
+                            {d.simulations.length === 0 ? <span className="muted">Not run yet — press Replay or Run live above to start.</span> : d.simulations.map(m => (
+                              <div key={m.sim_id} className="row" style={{ justifyContent: "space-between" }}>
+                                <span>{dayTime(m.created_at)} · {m.mode === "replay" ? "replay" : m.mode === "record" ? "live, saved" : "live"} · {m.status} (day {m.step}/{m.steps})</span>
+                                <Link to={`/studio/run/${m.sim_id}`} style={{ fontWeight: 600 }}>Open run →</Link>
+                              </div>
+                            ))}
+                          </div>
+                        </details>
+                      </>
+                    )}
+                  </>
+                );
+              })()}
+
+              {activeEntry?.kind === "template" && (() => {
+                const t = activeEntry.tpl;
+                return (
+                  <>
+                    <div className="eos-hd">
+                      <div>
+                        <div className="label">{t.template_id === "blank" ? "Blank Sandbox" : "Scenario Template"}</div>
+                        <h2 style={{ marginTop: 2 }}>{t.title}</h2>
+                      </div>
+                      {!t.unavailable && (
+                        <button className="btn btn--primary btn--sm" type="button" onClick={() => create(t)}>
+                          <Icon name="plus" />{t.template_id === "blank" ? "Write your own" : "Use this template"}
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="eos-ai">
+                      <div className="eos-ai-hd"><span className="eos-spark" aria-hidden="true">✦</span>Sandbox Template · Isolated from Live Data</div>
+                      <div className="eos-ai-bd">{t.summary}</div>
+                    </div>
+
+                    {t.tags.length > 0 && (
+                      <div>
+                        <div className="label" style={{ marginBottom: 8 }}>Risk Domains Covered</div>
+                        <div className="row wrap" style={{ gap: 6 }}>
+                          {t.tags.map(x => <span key={x} className="chip">{TAG[x] ?? x}</span>)}
+                        </div>
+                      </div>
+                    )}
+
+                    {t.unavailable && <Banner kind="warn" icon="warn">Can't run here: {t.unavailable}.</Banner>}
+
+                    <p className="small muted">
+                      {t.template_id === "blank"
+                        ? "Write up to 30 custom headlines across 21 simulated days (or import JSON) and optionally inject a custom exchange-rate shock. AMIRI Agent's monitors and investigation trace them without affecting live alerts."
+                        : "Creates a customizable copy for your institution. You can tune shock intensity, toggle individual headlines, and replay or run live with AMIRI's agents."}
+                    </p>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        )}
+      </>}
       {own && <NewOwnModal onClose={() => setOwn(false)} />}
     </div>
   );

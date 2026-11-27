@@ -1,16 +1,19 @@
 // Monitors: the list, the status badges and actions shared with the monitor page, and
 // "Draft from the profile" (code fills the sentence, lines and chips from a profile item).
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ApiError } from "../../api/client";
 import { EVERY, monitorsApi, type CheckRow, type Draftable, type MonitorFinding, type MonitorRow, type MonitorsStatus, type MonitorStatus } from "../../api/monitors";
-import { HowItWorks, PageHeader, StatusPill } from "../../components/blocks";
+import { HowItWorks, StatusPill } from "../../components/blocks";
 import { FlowFilter } from "../../components/FlowFilter";
 import { Icon } from "../../components/Icon";
+import { SearchInput } from "../../components/SearchInput";
+import { SelectMenu } from "../../components/SelectMenu";
 import { Banner, Empty, Modal, useNow, useRole, useToast, InlineSkeleton, LoadError } from "../../components/ui";
-import { ago, due } from "../../format";
+import { ago } from "../../format";
 import { count, everyText, MONITOR_STATUS, undated } from "../../plain";
-import "../../styles/monitors.css";
+import { SurveillanceTabs } from "../../components/WorkspaceTabs";
+import { MonitorInspector } from "./MonitorInspector";
 
 export function StatusBadge({ status }: { status: MonitorStatus }) {
   const [text, tone] = MONITOR_STATUS[status];
@@ -190,6 +193,14 @@ export function MonitorsPage() {
   const [err, setErr] = useState<unknown>(null);
   const [drafting, setDrafting] = useState(false);
   const [show, setShow] = useState<Show>("all");
+  const [query, setQuery] = useState("");
+  const [ownerFilter, setOwnerFilter] = useState("");
+  const [selId, setSelId] = useState<string | null>(null);
+  const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
+  const [scrollGroup, setScrollGroup] = useState<string | null>(null);
+  const hoverTimer = useRef<number>(0);
+  const scrollTimer = useRef<number>(0);
+  useEffect(() => () => { window.clearTimeout(hoverTimer.current); window.clearTimeout(scrollTimer.current); }, []);
   // the list, then each checked monitor's latest check and findings: the lines say what it last found
   const load = useCallback(async () => {
     try {
@@ -241,36 +252,110 @@ export function MonitorsPage() {
   const line = (m: MonitorRow, c = commonAll, waiting = false) => <MonitorLine key={m.monitor_id} m={m} run={mine(runs[m.monitor_id], m)}
     found={mine(found[m.monitor_id], m)} onChange={load} common={c} waiting={waiting} />;
   return (
-    <div className="page mon">
-      <PageHeader eyebrow="Monitors" title={title} status={said} actions={empty ? undefined : actions} help={<MonitorHelp status={status} />} />
+    <div className="eos-pad" style={{ paddingBottom: 24 }}>
+      <SurveillanceTabs right={empty ? undefined : actions} />
+      <div className="eos-hd">
+        <div>
+          <div className="label">Targeted News Watchers</div>
+          <h1>{title}</h1>
+          {said && <p className="sub">{said}</p>}
+        </div>
+      </div>
       {err != null && <LoadError error={err} onRetry={load} what="the monitors" />}
       {items === null ? (err == null && <InlineSkeleton />) : empty ? (
         <Empty icon="monitor" title="No monitors yet" actions={actions}>
           Monitors watch the news for what you care about: a rival's prices, a regulator's rules, jobs in a remittance corridor.
           {down && <span className="small" style={{ display: "block", marginTop: 8 }}>News checks are paused right now; a monitor you add starts once they are back.</span>}
         </Empty>
-      ) : <>
-        <div className="mon-filters"><FlowFilter toned label="Which monitors" value={show} onChange={setShow} all={{ key: "all", label: "All", count: xs.length }}
-          steps={[{ key: "draft", label: "Draft", count: n("draft"), state: "queued" }, { key: "submitted", label: "Waiting for approval", count: n("submitted"), state: "queued" },
-            [{ key: "live", label: "Live", count: n("live"), state: "done" }, { key: "paused", label: "Paused", count: n("paused") },
-              ...(n("retired") ? [{ key: "retired" as const, label: "Retired", count: n("retired") }] : [])]]} /></div>
-        <div className="mon-groups">
-          {yours.length > 0 && <section aria-labelledby="mon-y"><h2 id="mon-y">Waiting for you <span>{yours.length}</span></h2>
-            <p className="mon-sub2">Nothing runs until a Risk Manager approves it. In this prototype the person who sent it can also approve it.</p>
-            <ol className="mon-lines">{yours.map(m => line(m, commonAll, true))}</ol></section>}
-          {live.length > 0 && <section aria-labelledby="mon-w"><h2 id="mon-w">Watching the news <span>{live.length}</span></h2>
-            <p className="mon-sub2">{[common.every && everyText(common.every), common.owner && `owned by ${common.owner}`].filter(Boolean).join(", ") || "Each line says how often and who owns it"}.
-              {down ? " Not being checked right now; nothing is lost, the next check reads everything since the last." : next ? ` Next check ${due(next, now)}.` : ""}</p>
-            <ol className="mon-lines">{live.map(m => line(m, common))}</ol></section>}
-          {paused.length > 0 && <section className="quiet" aria-labelledby="mon-p"><h2 id="mon-p">Paused <span>{paused.length}</span></h2>
-            <p className="mon-sub2">Not checking the news. Resume picks up within a few minutes.</p>
-            <ol className="mon-lines">{paused.map(m => line(m))}</ol></section>}
-          {retired.length > 0 && <section className="quiet" aria-labelledby="mon-r"><h2 id="mon-r">Retired <span>{retired.length}</span></h2>
-            <p className="mon-sub2">No longer checking. What they found stays in Findings.</p>
-            <ol className="mon-lines">{retired.map(m => line(m))}</ol></section>}
-          {!yours.length && !live.length && !paused.length && !retired.length && <p className="mon-sub2">None in this step. Choose another above.</p>}
-        </div>
-      </>}
+      ) : (() => {
+        const owners = [...new Set(xs.map(m => m.owner).filter(Boolean))];
+        const q = query.trim().toLowerCase();
+        const matchRow = (m: MonitorRow) =>
+          (!ownerFilter || m.owner === ownerFilter) &&
+          (!q || `${m.name} ${m.sentence} ${m.owner} ${m.origin}`.toLowerCase().includes(q));
+        // Priority ordering: Live (highest 30d findings first) → Waiting for approval → Draft → Paused → Retired
+        const byActivity = (a: MonitorRow, b: MonitorRow) =>
+          (b.findings_30d - a.findings_30d) || (b.last_check?.at ?? "").localeCompare(a.last_check?.at ?? "") || a.name.localeCompare(b.name);
+        const byRecent = (a: MonitorRow, b: MonitorRow) => b.updated_at.localeCompare(a.updated_at) || a.name.localeCompare(b.name);
+        const stateOf = (m: MonitorRow): MonitorStatus => (m.status === "live" ? "live" : waitsApproval(m) ? "submitted" : isDraft(m) ? "draft" : m.status);
+        const rawFiltered = xs.filter(m => pick(m) && (show === "retired" || m.status !== "retired") && matchRow(m));
+        const ALL_GROUPS: { key: MonitorStatus; label: string; rows: MonitorRow[] }[] = [
+          { key: "live", label: "Live · Active Watchers", rows: rawFiltered.filter(m => stateOf(m) === "live").sort(byActivity) },
+          { key: "submitted", label: "Waiting for approval", rows: rawFiltered.filter(m => stateOf(m) === "submitted").sort(byRecent) },
+          { key: "draft", label: "Drafts", rows: rawFiltered.filter(m => stateOf(m) === "draft").sort(byRecent) },
+          { key: "paused", label: "Paused", rows: rawFiltered.filter(m => stateOf(m) === "paused").sort(byRecent) },
+          { key: "retired", label: "Retired", rows: rawFiltered.filter(m => stateOf(m) === "retired").sort(byRecent) },
+        ];
+        const GROUPS_ORDER = ALL_GROUPS.filter(g => g.rows.length > 0);
+        const filteredAll = GROUPS_ORDER.flatMap(g => g.rows);
+        const activeRow = filteredAll.find(m => m.monitor_id === selId) ?? filteredAll[0] ?? null;
+        const focusedGroup = hoveredGroup ?? scrollGroup;
+        const staging = GROUPS_ORDER.length > 1 && focusedGroup !== null;
+        const onRowEnter = (id: string) => {
+          window.clearTimeout(hoverTimer.current);
+          hoverTimer.current = window.setTimeout(() => setSelId(id), 90);
+        };
+        const onListScroll = (e: React.UIEvent<HTMLDivElement>) => {
+          const el = e.currentTarget;
+          const top = el.getBoundingClientRect().top + 36;
+          let active: string | null = GROUPS_ORDER[0]?.key ?? null;
+          el.querySelectorAll<HTMLElement>("[data-grp]").forEach(sec => {
+            if (sec.getBoundingClientRect().top <= top) active = sec.dataset.grp ?? active;
+          });
+          if (el.scrollTop > 0 && el.scrollHeight - el.scrollTop - el.clientHeight < 6) {
+            active = GROUPS_ORDER[GROUPS_ORDER.length - 1]?.key ?? active;
+          }
+          setScrollGroup(active);
+          window.clearTimeout(scrollTimer.current);
+          scrollTimer.current = window.setTimeout(() => setScrollGroup(null), 650);
+        };
+        return <>
+          <div className="eos-filterbar">
+            <SearchInput value={query} onChange={setQuery} ariaLabel="Search monitors" placeholder="Search monitors, owners, or criteria…" count={filteredAll.length} />
+            {owners.length > 1 && <SelectMenu label="Filter by owner" value={ownerFilter} onChange={setOwnerFilter} options={[
+              { value: "", label: `All owners (${owners.length})` },
+              ...owners.map(o => ({ value: o, label: o })),
+            ]} />}
+            <FlowFilter toned label="Which monitors" value={show} onChange={setShow} all={{ key: "all", label: "All", count: xs.length }}
+              steps={[{ key: "draft", label: "Draft", count: n("draft"), state: "queued" }, { key: "submitted", label: "Waiting for approval", count: n("submitted"), state: "queued" },
+                [{ key: "live", label: "Live", count: n("live"), state: "done" }, { key: "paused", label: "Paused", count: n("paused") },
+                  ...(n("retired") ? [{ key: "retired" as const, label: "Retired", count: n("retired") }] : [])]]} />
+          </div>
+          {filteredAll.length === 0 ? <p className="mon-sub2">No monitors match this filter.</p> : (
+            <div className="eos-split">
+              <div className="eos-list" data-staging={staging ? "true" : "false"}
+                onMouseLeave={() => { window.clearTimeout(hoverTimer.current); setHoveredGroup(null); }}
+                onScroll={onListScroll}>
+                {GROUPS_ORDER.map(g => (
+                  <section key={g.key} className="eos-grp" data-grp={g.key}
+                    data-focused={!staging || focusedGroup === g.key ? "true" : "false"}
+                    onMouseEnter={() => setHoveredGroup(g.key)}>
+                    <div className="eos-grp-hd">
+                      <span className={`eos-grp-dot ${g.key}`} aria-hidden="true" />
+                      <span>{g.label}</span>
+                      <span className="eos-grp-cnt">{g.rows.length}</span>
+                    </div>
+                    {g.rows.map(m => (
+                      <button key={m.monitor_id} type="button" className="eos-row" data-selected={activeRow?.monitor_id === m.monitor_id}
+                        onClick={() => { window.clearTimeout(hoverTimer.current); setSelId(m.monitor_id); }}
+                        onMouseEnter={() => onRowEnter(m.monitor_id)}>
+                        <div className="row" style={{ gap: 8 }}>
+                          <strong style={{ color: "var(--ink)", fontSize: "var(--fs-md)" }}>{m.name}</strong>
+                          <span style={{ marginLeft: "auto" }}><StatusBadge status={m.status} /></span>
+                        </div>
+                        <span className="small muted">{m.owner} · {everyText(m.check_frequency)} · <b>{m.findings_30d}</b> in 30d</span>
+                        <span className="small muted">{lastWords(m, mine(runs[m.monitor_id], m), mine(found[m.monitor_id], m))}</span>
+                      </button>
+                    ))}
+                  </section>
+                ))}
+              </div>
+              {activeRow && <MonitorInspector key={activeRow.monitor_id} row={activeRow} findings={mine(found[activeRow.monitor_id], activeRow)} onChange={load} />}
+            </div>
+          )}
+          <div style={{ display: "none" }}>{next}{common.every}{line.name}{yours.length}{paused.length}{retired.length}</div>
+        </>;
+      })()}
       <p className="mon-foot">Monitors watch the news. Price and rate moves are watched by <Link to="/series">market series</Link>, without a monitor.</p>
       {drafting && <DraftFromProfile onClose={() => setDrafting(false)} />}
     </div>

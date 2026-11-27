@@ -1,6 +1,6 @@
 // The Institution page (ongoing edits) and its shared loading. Everything here works
 // without the assistant: forms, suggestion pickers and link grids on the profile API.
-import { Fragment, useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { api, ApiError } from "../../api/client";
 import { inst, type HistoryRow, type InstitutionSummary, type Item, type Profile, type Readiness } from "../../api/institutions";
@@ -8,14 +8,14 @@ import type { Installation } from "../../App";
 import { Icon } from "../../components/Icon";
 import { WithChat } from "../../components/SetupChat";
 import { changeWords, countOf, fieldWord, SECTION_ONE, valueText } from "../../components/setupFlow";
-import { PageHeader, StatusPill } from "../../components/blocks";
-import { Banner, DEMOS, InlineSkeleton, LoadError, MenuButton, Modal, PageHead, ResetModal, useRole, useToast, PageSkeleton, StatusIcon } from "../../components/ui";
+import { StatusPill } from "../../components/blocks";
+import { Banner, ChatToggleCtx, DEMOS, InlineSkeleton, LoadError, MenuButton, Modal, PageHead, ResetModal, useRole, useToast, PageSkeleton, StatusIcon } from "../../components/ui";
 import { dayTime, person, plural } from "../../format";
 import { cap, words } from "../../plain";
 import { PlaceName, useLoad } from "./fields";
 import { InstitutionFields, InstitutionModal, LABELS, splitErrors, useHiddenErrors, type Ctx } from "./forms";
 import { ProfileMap } from "./ProfileMap";
-import { LinkGrid, SectionList } from "./sections";
+import { LinkGrid, SectionList, SectionToggle } from "./sections";
 import { DraftFromProfile } from "../monitors/Monitors";
 import "../../styles/setup.css";
 
@@ -178,6 +178,21 @@ function BeforeAfter({ r }: { r: HistoryRow }) {
   );
 }
 
+function CollapsibleCard({ title, count, sub, right, children, defaultCollapsed = false }: {
+  title: ReactNode; count?: number; sub?: ReactNode; right?: ReactNode; children: ReactNode; defaultCollapsed?: boolean;
+}) {
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  return (
+    <div className={`card eos-sec-card${collapsed ? " is-collapsed" : ""}`}>
+      <div className="hd">
+        <SectionToggle title={title} count={count} sub={sub} collapsed={collapsed} onToggle={() => setCollapsed(c => !c)} />
+        {right && <><span className="spacer" />{right}</>}
+      </div>
+      {!collapsed && children}
+    </div>
+  );
+}
+
 function History({ id, pv, onChanged, readOnly, names }: { id: string; pv: number; onChanged: () => void; readOnly: boolean; names: Record<string, string | null> }) {
   const toast = useToast();
   const [rows, setRows] = useState<HistoryRow[]>([]);
@@ -202,8 +217,7 @@ function History({ id, pv, onChanged, readOnly, names }: { id: string; pv: numbe
   };
   useEffect(() => { inst.history(id).then(r => { setRows(r.items); setNext(r.next_before); }).catch(() => {}); }, [id, pv]);
   return (
-    <div className="card">
-      <div className="hd"><h2>Every change</h2><span className="small muted">what changed, when, and who made it (a form, the Setup agent, an import)</span></div>
+    <CollapsibleCard title="Every change" count={batches.length} sub="what changed, when, and who made it">
       <div className="tblwrap"><table className="tbl hist">
         <thead><tr><th>When</th><th>What changed</th><th>By</th><th><span className="sr">Actions</span></th></tr></thead>
         <tbody>{batches.map(b => { const r = b[0], k = r.batch_id; return (<Fragment key={k}>
@@ -227,7 +241,7 @@ function History({ id, pv, onChanged, readOnly, names }: { id: string; pv: numbe
         {undo.valid ? <ul className="small">{undo.changes.map((c, k) => { const w = changeWords(c, "propose", names); return <li key={k}>{c.op === "create" ? "Add back" : c.op === "delete" ? "Remove" : "Restore"} {w.name ? <b>{w.name}</b> : SECTION_ONE[c.section] ?? c.section}{w.name ? ` (${SECTION_ONE[c.section] ?? c.section})` : ""}</li>; })}</ul>
           : <div className="rawerr">Can't be undone as it stands: {undo.errors.map(e => e.message).join("; ")}</div>}
       </Modal>}
-    </div>
+    </CollapsibleCard>
   );
 }
 
@@ -258,23 +272,34 @@ function AgentsView({ id, pv, names, regulators }: { id: string; pv: number; nam
   return (
     <div className="col gap16">
       <p className="agents-lead">Radar reads news about these places, topics and names. Code works them out from your profile (version {c.profile_version}); the monitors, the investigation and the Setup agent read the same profile.</p>
-      <div className="card"><div className="hd"><h2>Places Radar watches</h2><span className="count">{s.places.length}</span></div>
+      <CollapsibleCard title="Places Radar watches" count={s.places.length}>
         <div className="tblwrap"><table className="tbl agents-tbl">
           <thead><tr><th>Place</th><th>Why it is watched</th></tr></thead>
           <tbody>{s.places.map((p: string) => (
             <tr key={p}><td className="strong"><PlaceName code={p} names={names} /></td>
               <td><ul className="why">{(s.why?.[p] ?? []).map((w: string, k: number) => { const [tag, text] = whyParts(w, names); return (
                 <li key={k}>{tag && <span className="badge b-noeffect">{tag}</span>}<span>{text}</span></li>); })}</ul></td></tr>))}</tbody>
-        </table></div></div>
-      <div className="grid2">
-        <div className="card"><div className="hd"><h2>Topics</h2></div><div className="bd"><div className="row wrap" style={{ gap: 6 }}>
-          {s.themes.map((t: string) => <span key={t} className="chip">{THEME_WORDS[t] ?? t}</span>)}</div></div></div>
-        <div className="card"><div className="hd"><h2>Names</h2></div><div className="bd"><div className="row wrap" style={{ gap: 6 }}>
-          {s.actors.map((a: string) => <span key={a} className="chip">{actorName(a)}</span>)}</div></div></div>
+        </table></div>
+      </CollapsibleCard>
+      <div className="grid2" style={{ alignItems: "start" }}>
+        <CollapsibleCard title="Topics" count={s.themes.length}><div className="bd"><div className="row wrap" style={{ gap: 6 }}>
+          {s.themes.map((t: string) => <span key={t} className="chip">{THEME_WORDS[t] ?? t}</span>)}</div></div></CollapsibleCard>
+        <CollapsibleCard title="Names" count={s.actors.length}><div className="bd"><div className="row wrap" style={{ gap: 6 }}>
+          {s.actors.map((a: string) => <span key={a} className="chip">{actorName(a)}</span>)}</div></div></CollapsibleCard>
       </div>
       {role === "platform_admin" && <div className="card"><div className="hd"><h2>The full context</h2><span className="spacer" /><button className="btn btn--sm" type="button" onClick={() => setRaw(!raw)}>{raw ? "Hide" : "Show"} JSON</button></div>
         {raw && <div className="bd"><pre className="mono small" style={{ whiteSpace: "pre-wrap", margin: 0, maxHeight: 520, overflow: "auto" }}>{JSON.stringify(c, null, 2)}</pre></div>}</div>}
     </div>
+  );
+}
+
+function SetupAgentOpenBtn() {
+  const chat = useContext(ChatToggleCtx);
+  if (!chat || chat.open) return null;
+  return (
+    <button className="btn btn--primary" type="button" onClick={chat.toggle}>
+      <span aria-hidden="true">✦</span>Setup Agent
+    </button>
   );
 }
 
@@ -325,14 +350,17 @@ export function InstitutionPage() {
   };
 
   return (
-    <WithChat institutionId={i.institution_id} onTrack={follow} onApplied={applied} at={{ tab }}><div className="page">
-      <PageHeader
-        title={i.name} pills={<StatusBadge status={i.status} />}
-        status={<>{i.subtype ? `${cap(words(i.subtype))} ${i.institution_type === "bank" ? "bank" : "insurer"}` : i.institution_type === "bank" ? "Bank" : "Insurer"}{i.islamic ? " (Islamic)" : ""} in <PlaceName code={i.home_country} names={profile.place_names} /> · {i.base_currency}</>}
-        help={<div className="col" style={{ gap: 8 }}>{i.summary && <p className="ph-about">{i.summary}</p>}
-          <p className="small muted">Time zone: {i.time_zone}. AMIRI Agent reads this profile to decide what matters to you: where you operate, your customers and products, your flows, rules, rivals and risks.</p></div>}
-        helpLabel="About this institution"
-        actions={<>
+    <WithChat institutionId={i.institution_id} onTrack={follow} onApplied={applied} at={{ tab }}><div className="eos-pad">
+      <div className="eos-hd">
+        <div>
+          <div className="row" style={{ gap: 8, marginBottom: 4 }}>
+            <span className="label">Governance · Institution Profile</span>
+            <StatusBadge status={i.status} />
+          </div>
+          <h1>{i.name}</h1>
+          <div className="sub">{i.subtype ? `${cap(words(i.subtype))} ${i.institution_type === "bank" ? "bank" : "insurer"}` : i.institution_type === "bank" ? "Bank" : "Insurer"}{i.islamic ? " (Islamic)" : ""} in <PlaceName code={i.home_country} names={profile.place_names} /> · {i.base_currency} · {i.time_zone}</div>
+        </div>
+        <div className="row wrap" style={{ gap: 8 }}>
           <Link className="btn" to="/institution/setup"><Icon name="check" />Guided setup</Link>
           {!archived && <button className="btn" type="button" onClick={() => setEditing(true)}><Icon name="edit" />Edit details</button>}
           <MenuButton label="More">
@@ -342,7 +370,9 @@ export function InstitutionPage() {
           {i.status === "setup" && <button className="btn btn--primary" type="button" disabled={!readiness.ready} title={readiness.ready ? "" : "Required parts are missing"} onClick={() => act("activate")}>Activate</button>}
           {archived && <button className="btn btn--primary" type="button" onClick={() => act("restore")}>Restore</button>}
           {i.status === "setup" && <button className="btn btn--danger" type="button" aria-label="Delete this institution" title="Delete this institution" onClick={() => setConfirm("delete")}><Icon name="trash" /></button>}
-        </>} />
+          <SetupAgentOpenBtn />
+        </div>
+      </div>
       <div className="banners">
         {archived && <Banner kind="warn" icon="warn">Archived: the agents don't use this profile and it can't be changed. Restore it to edit.</Banner>}
         {!archived && !readiness.ready && <Banner kind="warn" icon="warn"><b>{plural(readiness.missing_required, "required part")} missing</b> before it can go live. <Link to="/institution/setup">Continue the guided setup</Link> or use the tabs.</Banner>}
@@ -352,20 +382,48 @@ export function InstitutionPage() {
         {TABS.map(([k, label, full]) => <button key={k} type="button" role="tab" aria-selected={tab === k} title={full !== label ? full : undefined} onClick={() => nav(`/institution/${k}`)}>{label}</button>)}
       </div>
 
-      {tab === "overview" && <div className="col gap16">
-        <div className="card"><div className="bd"><ProfileMap profile={profile} height={340} title={mapTitle(profile)} /></div></div>
-        <div className="grid2">
-          <div className="card"><div className="hd"><h2>Ready to go live?</h2></div><div className="bd"><ReadinessList r={readiness} onFix={goFix} /></div></div>
-          <div className="card"><div className="hd"><h2>In the profile</h2></div><div className="bd"><div className="kv">
-            {Object.entries(LABELS).map(([s, l]) => <Fragment key={s}><div className="k">{l.many}</div><div className="v"><Link to={`/institution/${TAB_OF_SECTION[s]}`}>{i.counts[s as keyof typeof i.counts]}</Link></div></Fragment>)}
-            <div className="k">Owns risk decisions</div><div className="v">{i.governance_body ?? "—"}</div>
-            <div className="k">Settles abroad in</div><div className="v">{i.clearing_currencies?.join(", ") || "—"}</div>
-            <div className="k">Profile version</div><div className="v">{i.profile_version} · changed {dayTime(i.updated_at)}</div>
-          </div></div></div>
-        </div>
-        {readiness.warnings.length > 0 && <div className="card"><div className="hd"><h2>Worth a look</h2></div><div className="bd col" style={{ gap: 6 }}>
-          {readiness.warnings.map((w, k) => <div key={k} className="small"><span className="badge b-warn">{(w.section ?? "").replace(/-/g, " ")}</span> {w.message}</div>)}</div></div>}
-      </div>}
+      {tab === "overview" && (() => {
+        const reqChecks = readiness.checks.filter(c => c.level === "required");
+        const reqOk = reqChecks.filter(c => c.ok).length;
+        const pctReady = reqChecks.length ? Math.round((reqOk / reqChecks.length) * 100) : 100;
+        const corridors = new Set(profile.sections.flows.map(f => f.counterpart)).size;
+        return <div className="col gap16">
+          <div className="eos-ledger" role="group" aria-label="Institution profile summary">
+            <div className="eos-ledger-cell">
+              <span className="eos-l-step">01 · Readiness</span>
+              <span className="eos-l-val" style={{ color: readiness.ready ? "var(--accent)" : "var(--high-ink)" }}>{pctReady}%</span>
+              <span className="eos-l-meta">{readiness.ready ? "All required checks pass" : `${plural(readiness.missing_required, "required part")} missing`}</span>
+            </div>
+            <Link to="/institution/footprint" className="eos-ledger-cell">
+              <span className="eos-l-step">02 · Footprint</span>
+              <span className="eos-l-val">{corridors}</span>
+              <span className="eos-l-meta">Cross-border {corridors === 1 ? "corridor" : "corridors"} · {i.home_country}</span>
+            </Link>
+            <Link to="/institution/customers" className="eos-ledger-cell">
+              <span className="eos-l-step">03 · Portfolio</span>
+              <span className="eos-l-val">{i.counts.products}</span>
+              <span className="eos-l-meta">{plural(i.counts.segments, "segment")} · {plural(i.counts["risk-exposures"], "risk")}</span>
+            </Link>
+            <Link to="/institution/history" className="eos-ledger-cell">
+              <span className="eos-l-step">04 · Version</span>
+              <span className="eos-l-val">v{i.profile_version}</span>
+              <span className="eos-l-meta">Updated {dayTime(i.updated_at)}</span>
+            </Link>
+          </div>
+          <div className="eos-focal"><ProfileMap profile={profile} height={320} title={mapTitle(profile)} /></div>
+          <div className="grid2" style={{ alignItems: "start" }}>
+            <CollapsibleCard title="Ready to go live?" count={readiness.checks.length}><div className="bd"><ReadinessList r={readiness} onFix={goFix} /></div></CollapsibleCard>
+            <CollapsibleCard title="In the profile"><div className="bd"><div className="kv">
+              {Object.entries(LABELS).map(([s, l]) => <Fragment key={s}><div className="k">{l.many}</div><div className="v"><Link to={`/institution/${TAB_OF_SECTION[s]}`}>{i.counts[s as keyof typeof i.counts]}</Link></div></Fragment>)}
+              <div className="k">Owns risk decisions</div><div className="v">{i.governance_body ?? "—"}</div>
+              <div className="k">Settles abroad in</div><div className="v">{i.clearing_currencies?.join(", ") || "—"}</div>
+              <div className="k">Profile version</div><div className="v">{i.profile_version} · changed {dayTime(i.updated_at)}</div>
+            </div></div></CollapsibleCard>
+          </div>
+          {readiness.warnings.length > 0 && <CollapsibleCard title="Worth a look" count={readiness.warnings.length}><div className="bd col" style={{ gap: 6 }}>
+            {readiness.warnings.map((w, k) => <div key={k} className="small"><span className="badge b-warn">{(w.section ?? "").replace(/-/g, " ")}</span> {w.message}</div>)}</div></CollapsibleCard>}
+        </div>;
+      })()}
       {tab === "customers" && <div className="col gap16">
         <SectionList section="segments" ctx={ctx} reload={S.reload} suggest />
         <SectionList section="products" ctx={ctx} reload={S.reload} suggest />

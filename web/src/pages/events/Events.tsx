@@ -2,18 +2,21 @@
 // whether anything was traced to a product, and the chosen one reads in full on the right: why it matters by product,
 // where it started, where it is, and the way into the event. The investigation's queue is one line, not stacked banners.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { ApiError } from "../../api/client";
 import { alertsApi } from "../../api/alerts";
 import { investigationApi, type EventDetail, type EventRow, type InvestigationStatus, type Run, type Theme } from "../../api/investigation";
-import { HowItWorks, PageHeader, Places, TonePill } from "../../components/blocks";
+import { DeadlineBadge, Places, ToneGlyph, TonePill } from "../../components/blocks";
+import { SearchInput } from "../../components/SearchInput";
+import { SelectMenu } from "../../components/SelectMenu";
 import { CheckBrief } from "../../components/checks";
 import { FlowFilter } from "../../components/FlowFilter";
 import { Icon } from "../../components/Icon";
 import { Empty, useNow, useRole, useToast, InlineSkeleton, LoadError } from "../../components/ui";
-import { ago, dayTime, until, plural } from "../../format";
+import { ago, dayTime, placeName, until, plural } from "../../format";
 import { count, eventTitle, impactText, longWhen, metricWords, onDay, productTypeLabel, sizeTiming, sourceInfo, themeLabel } from "../../plain";
 import { useRecentFindings } from "../findings/recent";
+import { EventsFindingsTabs } from "../../components/WorkspaceTabs";
 import "../../styles/events.css";
 
 /** A theme tag in words ("Oil prices up"): the Overview and Radar use it too. */
@@ -133,21 +136,24 @@ function Brief({ e, det, failed, onRetry, checks, why, onWhy }: { e: EventRow; d
     {!det && failed && <p className="ev-fail">Couldn't load what this event means for you.
       <button className="btn btn--sm" type="button" onClick={onRetry}><Icon name="refresh" />Try again</button></p>}
     {xs.length > 0 ? <>
-      {/* folded to one line; opened, it stays open from event to event */}
-      <details className="ev-why" open={why} onToggle={x => onWhy((x.target as HTMLDetailsElement).open)}>
-        <summary><h3>Why it matters to you</h3><span><b className="amb">{count(e.hypotheses, "possible impact")}</b> on <b className="amb">{count(new Set(xs.map(i => i.product)).size, "product")}</b></span></summary>
-        <ul className="ev-imp">{xs.map(i => <li key={i.id}><b>{i.product}</b>: {lower(i.what)}<span className="muted"> · {i.st}</span></li>)}</ul>
-      </details>
-    </> : e.hypotheses === 0 && <p>The investigation found nothing in it that reaches your products. It closes on its own when the news stops.</p>}
+      <div className="eos-ai" style={{ marginBottom: 12 }}>
+        <div className="eos-ai-hd"><span className="eos-spark" aria-hidden="true">✦</span>Investigation Agent · Why it matters to you</div>
+        <div className="eos-ai-bd">
+          <details className="ev-why" open={why || true} onToggle={x => onWhy((x.target as HTMLDetailsElement).open)}>
+            <summary><span style={{ fontWeight: 600 }}><b className="amb">{count(e.hypotheses, "possible impact")}</b> on <b className="amb">{count(new Set(xs.map(i => i.product)).size, "product")}</b></span></summary>
+            <ul className="ev-imp">{xs.map(i => <li key={i.id}><b>{i.product}</b>: {lower(i.what)}<span className="muted"> · {i.st}</span></li>)}</ul>
+          </details>
+        </div>
+      </div>
+    </> : e.hypotheses === 0 && <p>The investigation found nothing in it that reaches your products. {f?.source === "timeseries" ? "It closes on its own once prices settle." : "It closes on its own when the news stops."}</p>}
     {f && <p className="ev-src"><span>It started from</span>
       {si && <span className={`ev-lab src-${f.source}`}><Icon name={si.icon} />{si.label}</span>}
       <span>{url ? <a href={url} target="_blank" rel="noreferrer">{f.title}<Icon name="external" className="src-ext" /><span className="sr"> (opens the article)</span></a> : f.title}
         {e.developments > 0 && <span className="muted">, and {plural(e.developments, "more report")} joined it since</span>}.</span></p>}
     {e.places.length > 0 && <p className="ev-where"><span className="ev-lab place"><Icon name="pin" /><Places codes={e.places} max={4} /></span></p>}
     <p className="ev-facts"><span>{e.themes.map(themeLabel).join(" · ")}</span>
-      <span>{e.status === "open" ? `Open until ${onDay(e.open_until)}` : `Closed ${e.closed_at ? onDay(e.closed_at) : ""}`}</span>
+      {e.status === "open" ? <DeadlineBadge>Open until {onDay(e.open_until)}</DeadlineBadge> : <span>Closed {e.closed_at ? onDay(e.closed_at) : ""}</span>}
       {checks && det && <CheckBrief e={det} />}</p>
-    <Link className="ev-go" to={`/events/${e.event_id}`}>Open the event<Icon name="arrow" /></Link>
   </div>;
 }
 
@@ -155,13 +161,29 @@ export function EventsPage() {
   const { role } = useRole();
   const admin = role === "platform_admin";
   const now = useNow(30_000);
-  const [show, setShow] = useState<Show>("open");
-  const [sort, setSort] = useState<Sort>("newest");
+  const [sp, setSp] = useSearchParams();
+  const show = (sp.get("show") as Show) || "open";
+  const sort = (sp.get("sort") as Sort) || "newest";
+  const query = sp.get("q") ?? "";
+  const toneFilter = sp.get("tone") ?? "";
+  const setParam = (key: string, val: string, def = "") => {
+    setSp(prev => {
+      const next = new URLSearchParams(prev);
+      if (!val || val === def) next.delete(key); else next.set(key, val);
+      return next;
+    }, { replace: true });
+  };
+  const setShow = (v: Show) => setParam("show", v, "open");
+  const setSort = (v: Sort) => setParam("sort", v, "newest");
+  const setQuery = (v: string) => setParam("q", v, "");
+  const setToneFilter = (v: string) => setParam("tone", v, "");
   const [sim, setSim] = useState(false);  // simulated events (from a series' "Simulate a move") stay out of the live picture unless asked for
-  const [sel, setSel] = useState<string | null>(null);    // the event picked with a click
-  const [peek, setPeek] = useState<string | null>(null);  // the event the mouse rests on: shown until it leaves the list
+  const [sel, setSel] = useState<string | null>(null);    // the selected event (kept when moving to the detail pane)
   const [why, setWhy] = useState(false);                   // "Why it matters to you" opened: kept as the reader moves between events
+  const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
+  const [scrollGroup, setScrollGroup] = useState<string | null>(null);
   const timer = useRef(0);
+  const scrollTimer = useRef(0);
   const nav = useRef<HTMLElement>(null);
   // the list ends at the bottom of the screen and scrolls inside itself, like Radar's; measured from where it starts
   useLayoutEffect(() => {
@@ -191,10 +213,18 @@ export function EventsPage() {
   const noEvent = (recent.items ?? []).filter(f => f.status === "set_aside");
   const nSim = (events ?? []).filter(e => e.world !== "live").length;
   const shown = (events ?? []).filter(e => sim || e.world === "live");  // what the status filter counts
-  const rows = useMemo(() => shown.filter(e => show === "all" || e.status === show)
-    .sort((a, b) => sort === "impacts" ? b.hypotheses - a.hypotheses || (a.anchor < b.anchor ? 1 : -1) : (a.anchor < b.anchor ? 1 : -1)), [shown, show, sort]);
+  const rows = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return shown.filter(e => {
+      if (show !== "all" && e.status !== show) return false;
+      if (toneFilter && e.tone !== toneFilter) return false;
+      if (!q) return true;
+      const hay = [title(e), ...e.themes.map(themeLabel), ...e.places, ...e.places.map(placeName)].join(" ").toLowerCase();
+      return hay.includes(q);
+    }).sort((a, b) => sort === "impacts" ? b.hypotheses - a.hypotheses || (a.anchor < b.anchor ? 1 : -1) : (a.anchor < b.anchor ? 1 : -1));
+  }, [shown, show, sort, query, toneFilter]);
   const reach = rows.filter(e => e.hypotheses > 0), none = rows.filter(e => e.hypotheses === 0);
-  const cur = rows.find(e => e.event_id === peek) ?? rows.find(e => e.event_id === sel) ?? reach[0] ?? rows[0];
+  const cur = rows.find(e => e.event_id === sel) ?? reach[0] ?? rows[0];
   const { details: ev, failed } = useEventDetails(shown, cur?.event_id, retry);
   const open =(events ?? []).filter(e => e.world === "live" && e.status === "open");
   const checks = !!status?.validation;
@@ -221,24 +251,29 @@ export function EventsPage() {
 
   const item =(e: EventRow) => <li key={e.event_id}>
     <button type="button" aria-current={cur?.event_id === e.event_id}
-      // resting on an event previews it, after a moment so passing over rows on the way to the reader doesn't
-      onMouseEnter={() => { clearTimeout(timer.current); timer.current = window.setTimeout(() => setPeek(e.event_id), 180); }}
+      // resting on an event selects it (90ms debounce) and keeps it selected when moving into the detail pane
+      onMouseEnter={() => { clearTimeout(timer.current); timer.current = window.setTimeout(() => setSel(e.event_id), 90); }}
       onMouseLeave={() => clearTimeout(timer.current)}
-      onClick={() => { clearTimeout(timer.current); setPeek(null); setSel(e.event_id);  // on a phone the reader is under the list: go to it
+      onClick={() => { clearTimeout(timer.current); setSel(e.event_id);  // on a phone the reader is under the list: go to it
       if (matchMedia("(max-width:900px)").matches) requestAnimationFrame(() => document.getElementById("ev-read-h")?.scrollIntoView({ block: "start" })); }}>
       <span className="ev-tt">{title(e)}</span>
       <span className="ev-isub">{e.hypotheses ? `${count(e.hypotheses, "possible impact")} · ` : ""}{dayTime(e.anchor)}{e.status === "closed" && show === "all" ? " · closed" : ""}{e.world !== "live" ? " · simulated" : ""}</span>
     </button></li>;
 
   return (
-    <div className="page ev">
-      <PageHeader eyebrow={`Events${loadedAt ? ` · updated ${ago(loadedAt.toISOString(), now)}` : ""}`} title={headline} status={said}
-        actions={<>
-          <button className="btn" type="button" onClick={refresh}><Icon name="refresh" />Refresh</button>
-          {sim && ((events ?? []).some(e => e.world === "sandbox") || runs.some(r => r.world === "sandbox")) ? <ClearSandbox onDone={load} /> : null}
-          {toReview > 0 && <Link className="btn btn--primary" to="/alerts"><Icon name="alert" />Review {count(toReview, "alert")}</Link>}
-        </>}
-        help={<HowItWorks><p>An event is something that happened in the world, traced to the products it could hit. It stays open while news about it keeps coming, then closes.</p></HowItWorks>} />
+    <div className="eos-pad ev">
+      <EventsFindingsTabs right={<>
+        <button className="btn btn--ghost btn--sm" type="button" onClick={refresh}><Icon name="refresh" />Refresh</button>
+        {toReview > 0 && <Link className="btn btn--primary btn--sm" to="/alerts">Review {count(toReview, "alert")} →</Link>}
+      </>} />
+      <div className="eos-hd">
+        <div>
+          <div className="label">Traced Risk Events{loadedAt ? ` · updated ${ago(loadedAt.toISOString(), now)}` : ""}</div>
+          <h1>{headline}</h1>
+          {said && <p className="sub">{said}</p>}
+        </div>
+        {sim && ((events ?? []).some(e => e.world === "sandbox") || runs.some(r => r.world === "sandbox")) ? <ClearSandbox onDone={load} /> : null}
+      </div>
       {err != null && <LoadError error={err} onRetry={refresh} what="the events" />}
       {pipeline && status && <div className="ev-note" role="status">
         <Icon name="hourglass" />
@@ -251,32 +286,71 @@ export function EventsPage() {
         </div>
         {status.connected && waiting > 0 && <InvestigateNowButton onDone={refresh} small />}
       </div>}
-      <div className="filters ev-filters">
+      <div className="eos-filterbar">
+        <SearchInput value={query} onChange={setQuery} ariaLabel="Search events" placeholder="Search events, themes, places…" count={rows.length} />
+        <SelectMenu label="Filter by tone" value={toneFilter} onChange={setToneFilter} options={[
+          { value: "", label: "All tones" },
+          { value: "bad", label: "Bad", icon: <ToneGlyph tone="bad" colored /> },
+          { value: "mixed", label: "Mixed", icon: <ToneGlyph tone="mixed" colored /> },
+          { value: "good", label: "Good", icon: <ToneGlyph tone="good" colored /> },
+          { value: "neutral", label: "Neutral", icon: <ToneGlyph tone="neutral" colored /> },
+        ]} />
         <FlowFilter label="Which events" value={show} onChange={setShow} all={{ key: "all", label: "All", count: shown.length }}
           steps={[{ key: "open", label: "Open", count: shown.filter(e => e.status === "open").length }, { key: "closed", label: "Closed", count: shown.filter(e => e.status === "closed").length }]} />
-        {/* the groups already put events with impacts first: sorting changes something only when 2 or more could hit products */}
-        {reach.length > 1 && <label className="sortby ev-sort">Sort <select className="input" value={sort} onChange={e => setSort(e.target.value as Sort)}>
-          <option value="newest">Newest first</option><option value="impacts">Most possible impacts</option></select></label>}
-        {nSim > 0 && <label className="check ev-sort"><input type="checkbox" checked={sim} onChange={e => setSim(e.target.checked)} /> Also show {plural(nSim, "simulated event")} (from tests; not real)</label>}
+        {reach.length > 1 && <SelectMenu label="Sort events" value={sort} onChange={v => setSort(v as Sort)} options={[
+          { value: "newest", label: "Sort: Newest first" },
+          { value: "impacts", label: "Sort: Most impacts" },
+        ]} />}
+        {nSim > 0 && <label className="check ev-sort"><input type="checkbox" checked={sim} onChange={e => setSim(e.target.checked)} /> Simulated ({nSim})</label>}
         <span className="spacer" />
-        {!pipeline && (inProgress.length > 0 || noEvent.length > 0) && <Link className="ev-sort" to="/findings">See all findings</Link>}
+        {!pipeline && (inProgress.length > 0 || noEvent.length > 0) && <Link className="ev-sort" to="/findings">See all findings →</Link>}
       </div>
       {events === null ? (err == null && <InlineSkeleton />) : !rows.length || !cur ? (
         <Empty icon="events" title={show === "open" ? "No open events" : "No events here"} actions={<Link className="btn" to="/studio"><Icon name="studio" />Try a what-if in the Scenario Studio</Link>}>
           When AMIRI Agent traces news or a price move to your products, the event appears here.</Empty>
-      ) : <div className="ev-split">
-        <nav className="ev-index" aria-label="Events" ref={nav} onMouseLeave={() => { clearTimeout(timer.current); setPeek(null); }}>
-          {reach.length > 0 && <section className="hit" aria-labelledby="ev-k-hit"><h2 id="ev-k-hit">Could hit your products <span>{reach.length}</span></h2><ol>{reach.map(item)}</ol></section>}
-          {none.length > 0 && <section className="none" aria-labelledby="ev-k-none"><h2 id="ev-k-none">No impact traced <span>{none.length}</span></h2><ol>{none.map(item)}</ol></section>}
+      ) : (() => {
+        const focusedGroup = hoveredGroup ?? scrollGroup;
+        const staging = reach.length > 0 && none.length > 0 && focusedGroup !== null;
+        const onEvScroll = (e: React.UIEvent<HTMLElement>) => {
+          const el = e.currentTarget;
+          const top = el.getBoundingClientRect().top + 36;
+          let active: string | null = reach.length > 0 ? "hit" : "none";
+          el.querySelectorAll<HTMLElement>("[data-grp]").forEach(sec => {
+            if (sec.getBoundingClientRect().top <= top) active = sec.dataset.grp ?? active;
+          });
+          setScrollGroup(active);
+          window.clearTimeout(scrollTimer.current);
+          scrollTimer.current = window.setTimeout(() => setScrollGroup(null), 650);
+        };
+        return <div className="eos-split">
+        <nav className="eos-list ev-index" aria-label="Events" ref={nav} data-staging={staging ? "true" : "false"}
+          onMouseLeave={() => { clearTimeout(timer.current); setHoveredGroup(null); }}
+          onScroll={onEvScroll}>
+          {reach.length > 0 && <section className="eos-grp hit" data-grp="hit" data-focused={!staging || focusedGroup === "hit" ? "true" : "false"}
+            onMouseEnter={() => setHoveredGroup("hit")} aria-labelledby="ev-k-hit">
+            <div className="eos-grp-hd" id="ev-k-hit"><span className="eos-grp-dot" style={{ background: "var(--critical)" }} /><span>Could hit your products</span><span className="eos-grp-cnt">{reach.length}</span></div>
+            <ol>{reach.map(item)}</ol>
+          </section>}
+          {none.length > 0 && <section className="eos-grp none" data-grp="none" data-focused={!staging || focusedGroup === "none" ? "true" : "false"}
+            onMouseEnter={() => setHoveredGroup("none")} aria-labelledby="ev-k-none">
+            <div className="eos-grp-hd" id="ev-k-none"><span className="eos-grp-dot draft" /><span>No impact traced</span><span className="eos-grp-cnt">{none.length}</span></div>
+            <ol>{none.map(item)}</ol>
+          </section>}
         </nav>
-        <article className="ev-read" aria-labelledby="ev-read-h">
-          <p className="ev-when"><time dateTime={cur.anchor} title={longWhen(cur.anchor)}>{dayTime(cur.anchor)}</time>
-            {cur.hypotheses > 0 && <TonePill tone={cur.tone} />}
-            {cur.world !== "live" && <span className="pill t-blue">Simulated</span>}</p>
-          <h2 id="ev-read-h">{title(cur)}</h2>
+        <article className="eos-insp ev-read" aria-labelledby="ev-read-h">
+          <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+            <div style={{ minWidth: 0 }}>
+              <p className="ev-when"><time dateTime={cur.anchor} title={longWhen(cur.anchor)}>{dayTime(cur.anchor)}</time>
+                {cur.hypotheses > 0 && <TonePill tone={cur.tone} />}
+                {cur.world !== "live" && <span className="pill t-blue">Simulated</span>}</p>
+              <h2 id="ev-read-h">{title(cur)}</h2>
+            </div>
+            <Link className="btn btn--primary btn--sm" style={{ flex: "none" }} to={`/events/${cur.event_id}`}>Open event →</Link>
+          </div>
           <Brief e={cur} det={ev[cur.event_id]} failed={failed.has(cur.event_id)} onRetry={() => setRetry(n => n + 1)} checks={checks} why={why} onWhy={setWhy} />
         </article>
-      </div>}
+      </div>;
+      })()}
       {admin && <Runs runs={runs} onChange={load} />}
     </div>
   );

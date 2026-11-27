@@ -1,21 +1,18 @@
-// Alerts, by event: the headline says how many teams have an alert waiting and where they came from; each event is said once, as a
-// section, with one line per team under it. A line opens why AMIRI Agent expects it and what changed; Acknowledge opens a note in
-// place, with the why still open beside it. Taken-on alerts fold away at the end of All.
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+// Alerts — Master-Detail Split Triage Workspace (V2.2: Zero screen bouncing, inline search, ✦ Investigation Agent).
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { ApiError } from "../api/client";
-import { alertsApi, type AlertItem, type AlertSummary, type Effect } from "../api/alerts";
-import { investigationApi, type EventDetail } from "../api/investigation";
-import { HowItWorks, PageHeader, StatusPill } from "../components/blocks";
-import "../styles/daily.css";
-import "../styles/polish-daily.css";
-import "../styles/alerts.css";
+import { alertsApi, type AlertItem, type AlertSummary } from "../api/alerts";
+import { investigationApi, type EventDetail, type EventRow } from "../api/investigation";
+import { Fold } from "../components/blocks";
 import { FlowFilter } from "../components/FlowFilter";
 import { Icon } from "../components/Icon";
+import { SearchInput } from "../components/SearchInput";
+import { SelectMenu } from "../components/SelectMenu";
 import { Empty, ListSkeleton, LoadError, useNow, useToast } from "../components/ui";
 import { ago, dayTime, person } from "../format";
 import {
-  ACTION_MEANS, alertOrder, checkMove, count, earliest, eventTitle, impactText, LEVEL_LABEL, LEVEL_TONE, listText, onDay, relDay, sizeTiming, sourceInfo,
+  ACTION_MEANS, alertOrder, checkMove, count, eventTitle, impactText, LEVEL_LABEL, LEVEL_TONE, sizeTiming, sourceInfo,
 } from "../plain";
 
 type Show = "new" | "acknowledged" | "resolved" | "all";
@@ -23,200 +20,448 @@ const CHANGE: Record<string, string> = {
   raised: "Raised", escalated: "More evidence", acknowledged: "Acknowledged", resolved: "Resolved", reopened: "Reopened",
   confirmed: "Confirmed by your data", withdrawn: "Withdrawn", checked: "Checked against your data",
 };
-
-// the agent's own entries: alerts saved before the rename say "Amiri Agent", so both spellings count
 const AGENT = "AMIRI Agent";
 const isAgent = (by: string | null | undefined) => (by ?? "").toLowerCase() === AGENT.toLowerCase();
-// when AMIRI Agent last raised or escalated it: a person acknowledging it doesn't move it on the page
 const changed = (a: AlertItem) => [...a.history].reverse().find(h => isAgent(h.by) && h.change !== "resolved")?.at ?? a.created_at;
-// "Remittance inflow may fall" → "remittance inflow may fall" after the team's name; "FC deposit…" keeps its capitals
-const lower = (s: string) => (/^[A-Z][a-z]/.test(s) ? s[0].toLowerCase() + s.slice(1) : s);
-// the impact the alert's level rests on leads
 const lead = (a: AlertItem) => a.effects.find(e => e.check?.alert === a.level) ?? a.effects[0];
-const what = (a: AlertItem) => { const e = lead(a); return e ? lower(impactText(e.metric_name, e.direction)) : a.title; };
+const capFirst = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
+const what = (a: AlertItem) => { const e = lead(a); return capFirst(e ? impactText(e.metric_name, e.direction) : a.title); };
+const toneBadge = (t: string) => t === "red" ? "b-down" : t === "amber" ? "b-warn" : "b-ok";
 
-/** The history in runs: "More evidence 11 times, last 23 Nov 06:30" rather than eleven lines that say the same. */
 function runs(a: AlertItem) {
-  const out: { change: string; by: string; n: number; at: string; text: string }[] = [];
+  const out: { change: string; by: string; text: string; n: number; at: string }[] = [];
   for (const h of a.history) {
-    const by = isAgent(h.by) ? "" : h.by ?? "", last = out[out.length - 1];
-    if (last && last.change === h.change && last.by === by) { last.n++; last.at = h.at; last.text = h.text; }
-    else out.push({ change: h.change, by, n: 1, at: h.at, text: h.text });
+    const by = isAgent(h.by) ? "" : h.by ?? "", text = h.text ?? "", last = out[out.length - 1];
+    if (last && last.change === h.change && last.by === by && last.text === text) { last.n++; last.at = h.at; }
+    else out.push({ change: h.change, by, text, n: 1, at: h.at });
   }
   return out.reverse();
 }
 
-function Impact({ e }: { e: Effect }) {
-  const m = e.check ? checkMove(e.check.what) : null;
-  return <li><b>{e.product}</b>: {lower(impactText(e.metric_name, e.direction))}, because {lower(e.chain_label)}.
-    <span className="muted"> {sizeTiming(e.size, e.timing)}.</span>{m && <span className="ap-move"> Your data: <b>{m.move}</b> {m.against}.</span>}</li>;
-}
-
-function AlertLine({ a, ev, label, primary, onChange }: { a: AlertItem; ev?: EventDetail; label: boolean; primary: boolean; onChange: (a: AlertItem) => void }) {
+export function AlertsPage() {
   const toast = useToast();
   const now = useNow(60_000);
-  const [open, setOpen] = useState(false);
-  const [asking, setAsking] = useState<"ack" | "resolve" | null>(null);
-  const [note, setNote] = useState("");
-  const [busy, setBusy] = useState(false);
-  const act = async (action: "ack" | "resolve" | "reopen") => {
-    setBusy(true);
-    try { onChange(await alertsApi.act(a.alert_id, action, note)); setAsking(null); setNote("");
-      toast({ ack: "Acknowledged: your team can see you're on it", resolve: "Resolved", reopen: "Back on the review list" }[action]); }
-    catch (e) { toast(e instanceof ApiError ? e.full : String(e)); }
-    finally { setBusy(false); }
-  };
-  const products = [...new Set(a.effects.map(e => e.product))];
-  const src = a.sources?.[0] ? sourceInfo(a.sources[0]) : null;
-  const article = ev?.findings.flatMap(f => f.evidence?.headlines ?? []).find(h => h.url && (!a.top_finding || h.title === a.top_finding));
-  const id = `al-${a.alert_id}`;
-  return (
-    <li className={`ap-line ${a.status}`} id={id}>
-      <span className="ap-team">{a.owner}</span>
-      <button type="button" className="ap-t" aria-expanded={open} aria-controls={`${id}-x`} onClick={() => setOpen(!open)}><span className="ap-w">{what(a)}</span>
-        <span className="ap-sub">{listText(products, 2)}{a.effects.length > 1 ? ` · ${count(a.effects.length, "impact")}` : ""}</span></button>
-      <span className="ap-end">
-        {label && <StatusPill tone={LEVEL_TONE[a.level]} icon={a.level === "adverse" ? "bad" : "alert"}>{LEVEL_LABEL[a.level]}</StatusPill>}
-        {asking ? <span className="ap-act">
-          <input className="input" autoFocus aria-label={asking === "ack" ? "A note for your team (optional)" : "Why it's resolved (optional)"}
-            placeholder={asking === "ack" ? "A note for your team (optional)" : "Why it's resolved (optional)"}
-            value={note} onChange={e => setNote(e.target.value)} onKeyDown={e => { if (e.key === "Enter") act(asking); if (e.key === "Escape") { setAsking(null); setNote(""); } }} />
-          <button className="btn btn--primary btn--sm" type="button" disabled={busy} onClick={() => act(asking)}>{asking === "ack" ? "Acknowledge" : "Resolve"}</button>
-          <button className="btn btn--sm btn--ghost" type="button" onClick={() => { setAsking(null); setNote(""); }}>Cancel</button>
-        </span> : <span className="ap-act">
-          {a.status === "new" && <button className={`btn btn--sm${primary ? " btn--primary" : ""}`} type="button" title={ACTION_MEANS.ack} onClick={() => setAsking("ack")}><Icon name="check" />Acknowledge</button>}
-          {a.status !== "resolved" && <button className="btn btn--sm btn--ghost" type="button" title={ACTION_MEANS.resolve} onClick={() => setAsking("resolve")}>Resolve</button>}
-          {a.status !== "new" && <button className="btn btn--sm btn--ghost" type="button" title={ACTION_MEANS.reopen} disabled={busy} onClick={() => act("reopen")}>Reopen</button>}
-        </span>}
-      </span>
-      {a.status === "acknowledged" && <p className="ap-done"><Icon name="check" /><span><b>{person(a.acknowledged_by)}</b> is on it{a.acknowledged_at ? `, ${ago(a.acknowledged_at, now)}` : ""}{a.ack_note ? `: “${a.ack_note}”` : ""}</span></p>}
-      {a.status === "resolved" && <p className="ap-done ok"><Icon name="check" /><span>Resolved by <b>{isAgent(a.resolved_by) ? AGENT : person(a.resolved_by)}</b>{a.resolved_at ? `, ${ago(a.resolved_at, now)}` : ""}{a.resolved_note ? `: “${a.resolved_note}”` : ""}</span></p>}
-      {open && <div className="ap-x" id={`${id}-x`}>
-        <h3>Why AMIRI Agent expects this</h3>
-        <p className="dl-ai"><span className="dl-ai-chip"><b aria-hidden="true">AI</b>AMIRI Agent's assessment</span>
-          <span className="muted">Sizes and timing are estimates, checked against your own figures as they're published.</span></p>
-        <ul className="ap-why">{a.effects.map(e => <Impact key={e.hypothesis_id} e={e} />)}</ul>
-        {a.top_finding && <p className="ap-src">{src && <Icon name={src.icon} />}<span>It started from {src ? `${src.label}: ` : ""}{article?.url
-          ? <a href={article.url} target="_blank" rel="noreferrer">{a.top_finding}<Icon name="external" className="src-ext" /><span className="sr"> (opens the article)</span></a>
-          : a.top_finding}</span></p>}
-        {a.via_monitor && <p className="muted">Sent to you because your team owns <Link to={`/monitors/${a.via_monitor}`}>the monitor</Link> that found it.</p>}
-        <h3>What changed</h3>
-        <ol className="ap-hist">{runs(a).map((r, i) => <li key={i}><b>{CHANGE[r.change] ?? r.change}{r.n > 1 ? ` ${r.n} times` : ""}</b>
-          <span>{r.n > 1 ? "last " : ""}{dayTime(r.at)}{r.by ? ` · ${person(r.by)}` : ""}</span></li>)}</ol>
-      </div>}
-    </li>
-  );
-}
+  const [sp, setSp] = useSearchParams();
+  const rawShow = sp.get("status") as Show | null;
+  const show: Show = rawShow && ["new", "acknowledged", "resolved", "all"].includes(rawShow) ? rawShow : "new";
+  const team = sp.get("team") ?? "";
+  const query = sp.get("q") ?? "";
+  const levelFilter = sp.get("level") ?? "";
+  const eventFilter = sp.get("event") ?? "";
+  const selId = sp.get("alert") ?? null;
 
-export function AlertsPage() {
-  const [show, setShow] = useState<Show>("new");
-  const [team, setTeam] = useState("");
+  const setParam = useCallback((key: string, val: string, def = "") => {
+    setSp(prev => {
+      const next = new URLSearchParams(prev);
+      if (!val || val === def) next.delete(key); else next.set(key, val);
+      return next;
+    }, { replace: true });
+  }, [setSp]);
+
+  const setShow = (v: Show) => setParam("status", v, "new");
+  const setTeam = (v: string) => setParam("team", v, "");
+  const setQuery = (v: string) => setParam("q", v, "");
+  const setLevelFilter = (v: string) => setParam("level", v, "");
+  const setSelId = useCallback((id: string | null) => setParam("alert", id ?? "", ""), [setParam]);
+  const clearEventFilter = () => setParam("event", "", "");
+
+  const [mobOpen, setMobOpen] = useState(false);
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+  const hoverTimer = useRef<number>(0);
+  useEffect(() => () => window.clearTimeout(hoverTimer.current), []);
   const [items, setItems] = useState<AlertItem[] | null>(null);
   const [sum, setSum] = useState<AlertSummary | null>(null);
   const [events, setEvents] = useState<Record<string, EventDetail>>({});
+  const [eventRows, setEventRows] = useState<Record<string, EventRow>>({});
   const [err, setErr] = useState<unknown>(null);
-  const [taken, setTaken] = useState(false);  // the taken-on section of All, unfolded
+  const [asking, setAsking] = useState<"ack" | "resolve" | null>(null);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+
   const load = useCallback(async () => {
     try {
-      // the list is the newest 100, so it's asked for one status at a time (older alerts to review still show);
-      // the filter's counts come from the summary, which counts them all
-      const [s, xs] = await Promise.all([alertsApi.summary(), alertsApi.list({ status: show === "all" ? undefined : show, owner: team || undefined })]);
+      const [s, xs] = await Promise.all([
+        alertsApi.summary(),
+        alertsApi.list({
+          status: show === "all" ? undefined : show,
+          owner: team || undefined,
+          level: levelFilter || undefined,
+          event_id: eventFilter || undefined,
+        }),
+      ]);
       setSum(s); setItems(xs); setErr(null);
     } catch (e) { setErr(e); }
-  }, [show, team]);
-  useEffect(() => setItems(null), [show, team]);  // another filter: wait for its list rather than filter the old one
-  useEffect(() => { load(); const t = setInterval(load, 60_000); return () => clearInterval(t); }, [load]);
-  // an alert acted on here leaves a filter it no longer matches at once, before the next load
-  const shown = useMemo(() => items && items.filter(a => show === "all" || a.status === show), [items, show]);
-  const nAt = (k: Show, owner = team) => sum?.by_team_status?.filter(r => (!owner || r.owner === owner) && (k === "all" || r.status === k)).reduce((n, r) => n + r.n, 0);
-  // each alert's next check is on its event: one request per event on the page
-  const eventIds = useMemo(() => [...new Set((shown ?? []).map(a => a.event_id))].sort().join(","), [shown]);
+  }, [show, team, levelFilter, eventFilter]);
+
   useEffect(() => {
-    if (!eventIds) return;
-    let live = true;
-    Promise.all(eventIds.split(",").map(id => investigationApi.event(id).then(e => [id, e] as const).catch(() => null)))
-      .then(xs => { if (live) setEvents(Object.fromEntries(xs.filter(x => x !== null))); });
-    return () => { live = false; };
-  }, [eventIds]);
-  const nextCheck = (a: AlertItem) => {
-    const ev = events[a.event_id];
-    if (!ev) return null;
-    const hs = new Set(a.effects.map(e => e.hypothesis_id));
-    return earliest(ev.tasks.filter(t => hs.has(t.hypothesis_id) && !t.check?.final).map(t => t.next_check_after ?? t.check?.next_check_after));
+    investigationApi.events().then(rows => {
+      const map: Record<string, EventRow> = {};
+      rows.forEach(r => { map[r.event_id] = r; });
+      setEventRows(map);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => setItems(null), [show, team, levelFilter, eventFilter]);
+  useEffect(() => { load(); const t = setInterval(load, 60_000); return () => clearInterval(t); }, [load]);
+
+  const queue = useMemo(() => {
+    if (!items) return null;
+    const q = query.trim().toLowerCase();
+    return [...items]
+      .filter(a => {
+        if (show !== "all" && a.status !== show) return false;
+        if (levelFilter && a.level !== levelFilter) return false;
+        if (eventFilter && a.event_id !== eventFilter) return false;
+        if (!q) return true;
+        const canon = eventRows[a.event_id] ? eventTitle(eventRows[a.event_id]) : a.event_title;
+        return [a.title, a.owner, a.event_title, canon, a.top_finding ?? "", ...a.effects.map(e => `${e.product} ${e.metric_name} ${e.chain_label}`)].join(" ").toLowerCase().includes(q);
+      })
+      .sort((x, y) => alertOrder({ ...x, at: changed(x) }, { ...y, at: changed(y) }));
+  }, [items, show, query, levelFilter, eventFilter, eventRows]);
+
+  const cur = queue?.find(a => a.alert_id === selId) ?? queue?.[0] ?? null;
+  const curId = useRef<string | null>(null);
+  curId.current = cur?.alert_id ?? null;
+
+  const groupedEffects = useMemo(() => {
+    if (!cur) return [];
+    const map = new Map<string, typeof cur.effects>();
+    for (const e of cur.effects) {
+      const list = map.get(e.product) ?? [];
+      list.push(e);
+      map.set(e.product, list);
+    }
+    return [...map.entries()];
+  }, [cur]);
+
+  useEffect(() => {
+    setAsking(null); setNote("");
+    if (!cur || events[cur.event_id]) return;
+    investigationApi.event(cur.event_id).then(ev => setEvents(m => ({ ...m, [cur.event_id]: ev }))).catch(() => {});
+  }, [cur?.alert_id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const nAt = (k: Show, owner = team) =>
+    sum?.by_team_status?.filter(r => (!owner || r.owner === owner) && (k === "all" || r.status === k)).reduce((n, r) => n + r.n, 0);
+
+  const act = async (a: AlertItem, action: "ack" | "resolve" | "reopen") => {
+    setBusy(true);
+    try {
+      const updated = await alertsApi.act(a.alert_id, action, note);
+      setItems(xs => (xs ?? []).map(x => (x.alert_id === updated.alert_id ? updated : x)));
+      alertsApi.summary().then(setSum).catch(() => {});
+      window.dispatchEvent(new Event("amiri:alerts"));
+      if (curId.current === a.alert_id) { setAsking(null); setNote(""); }  // the prompt now belongs to another alert: leave it
+      toast({ ack: "Acknowledged: your team can see you're on it", resolve: "Resolved", reopen: "Back on the review list" }[action]);
+    } catch (e) { toast(e instanceof ApiError ? e.full : String(e)); }
+    finally { setBusy(false); }
   };
-  const update = (a: AlertItem) => { setItems(xs => (xs ?? []).map(x => (x.alert_id === a.alert_id ? a : x))); alertsApi.summary().then(setSum).catch(() => {});
-    window.dispatchEvent(new Event("amiri:alerts")); };
-  const evName = (a: AlertItem) => (events[a.event_id] ? eventTitle(events[a.event_id]) : a.event_title);
 
-  // the most serious first (the alert your own data confirms leads), then the latest; in All, taken-on ones fold away at the end
-  const queue = useMemo(() => [...(shown ?? [])].sort((x, y) => alertOrder({ ...x, at: changed(x) }, { ...y, at: changed(y) })), [shown]);
-  const open = show === "all" ? queue.filter(a => a.status === "new") : queue;
-  const done = show === "all" ? queue.filter(a => a.status !== "new") : [];
-  const groups = useMemo(() => { const m = new Map<string, AlertItem[]>(); open.forEach(a => m.set(a.event_id, [...(m.get(a.event_id) ?? []), a])); return [...m.values()]; }, [open]);
-  const levels = new Set(open.map(a => a.level));
-  const firstNew = open.find(a => a.status === "new")?.alert_id;
-
-  const s = sum;
-  const waiting = open.filter(a => a.status === "new");
-  // all early warnings: the headline says so once, and the lines leave the label out; any other mix keeps it on every line
-  const allEarly = waiting.length > 0 && levels.size === 1 && levels.has("warning");
-  const teams = new Set(waiting.map(a => a.owner)).size;
-  const first = earliest(waiting.map(nextCheck));
-  const adverse = waiting.filter(a => a.level === "adverse").length;
-  const g0 = waiting[0];
-  const headline = !s ? "Alerts" : !s.to_review ? "All caught up"
-    : team && (show === "new" || show === "all") ? <><span className="ap-n">{count(nAt("new", team) ?? waiting.length, "alert")}</span> waiting for {team}</>
-    : show === "new" || show === "all" ? <><span className="ap-n">{count(teams || s.teams.length, "team")}</span> {(teams || s.teams.length) === 1 ? "has" : "have"} an alert waiting</>
-    : <>{count(s.to_review, "alert")} waiting for review</>;
-  const status = !s ? "" : !s.to_review ? "Nothing is waiting for review." : !waiting.length ? "Choose To review to see them." : <>
-    {new Set(waiting.map(a => a.event_id)).size === 1 && g0 ? <>All from <Link className="ap-ev" to={`/events/${g0.event_id}`}>{evName(g0)}</Link></>
-      : <>From {count(new Set(waiting.map(a => a.event_id)).size, "event")}</>}
-    {adverse ? <>; <b className="dl-crit">{adverse} confirmed by your data</b>, shown first.</>
-      : allEarly ? <>, and all are early warnings: AMIRI Agent expects the impact, your data can't show it yet.</> : "."}
-    {first && <> The first check against your figures is <b>{onDay(first)}</b> ({relDay(first)}).</>}</>;
-
-  const section = (k: string, g: AlertItem[]) => {
-    const a0 = g[0], latest = g.map(changed).reduce((x, y) => (Date.parse(y) > Date.parse(x) ? y : x));  // a0 is the most serious, not the latest
-    return <section key={k} aria-labelledby={`ap-${k}`}>
-    <h2 id={`ap-${k}`}><Link to={`/events/${a0.event_id}`}>{evName(a0)}</Link> <span>{count(g.length, "alert")}</span>{a0.event_status === "closed" && <span>· closed</span>}</h2>
-    <p className="ap-sub2">Raised {onDay(a0.created_at)}{a0.top_finding ? <>, from “{a0.top_finding}”</> : null}. Last new evidence {dayTime(latest)}.</p>
-    <ol className="ap-lines">{g.map(a => <AlertLine key={a.alert_id} a={a} ev={events[a.event_id]} label={!allEarly} primary={a.alert_id === firstNew} onChange={update} />)}</ol>
-  </section>; };
+  const ev = cur ? events[cur.event_id] : undefined;
+  const evName = (a: AlertItem) => {
+    const srcEv = events[a.event_id] ?? eventRows[a.event_id];
+    return srcEv ? eventTitle(srcEv) : eventTitle({ title: a.event_title });
+  };
+  const eventFilterLabel = eventFilter
+    ? (events[eventFilter] ? eventTitle(events[eventFilter])
+      : eventRows[eventFilter] ? eventTitle(eventRows[eventFilter])
+      : items?.find(a => a.event_id === eventFilter)?.event_title ?? eventFilter)
+    : "";
+  const products = cur ? [...new Set(cur.effects.map(e => e.product))] : [];
+  const src = cur?.sources?.[0] ? sourceInfo(cur.sources[0]) : null;
+  const article = cur ? ev?.findings.flatMap(f => f.evidence?.headlines ?? []).find(h => h.url && (!cur.top_finding || h.title === cur.top_finding)) : undefined;
+  const singleLevel = queue ? new Set(queue.map(a => a.level)).size <= 1 : false;
+  const activeFilterCount = (show !== "new" ? 1 : 0) + (team ? 1 : 0) + (levelFilter ? 1 : 0) + (query.trim() ? 1 : 0) + (eventFilter ? 1 : 0);
+  const mobDetail = mobOpen && !!queue?.length;  // an empty queue has no inspector: keep the filters reachable
+  const statusLabels: Record<Show, string> = { all: "All", new: "To review", acknowledged: "Acknowledged", resolved: "Resolved" };
+  const resetFilters = () => {
+    setSp(prev => {
+      const next = new URLSearchParams(prev);
+      ["status", "team", "level", "q", "event"].forEach(k => next.delete(k));
+      return next;
+    }, { replace: true });
+  };
 
   return (
-    <div className="page ap">
-      <PageHeader eyebrow="Alerts" title={headline} status={status}
-        help={<HowItWorks>
-          <p>An alert goes to the team that owns each product an event could hit. Someone on that team acknowledges it, so everyone knows it's taken on. The most serious alert is at the top; work down the list.</p>
-          <div className="row wrap"><StatusPill tone="amber" icon="alert">Early warning</StatusPill><span>AMIRI Agent expects an impact; your data can't tell yet.</span></div>
-          <div className="row wrap"><StatusPill tone="amber" icon="alert">Showing early signs</StatusPill><span>Your figures are starting to move the bad way.</span></div>
-          <div className="row wrap"><StatusPill tone="red" icon="bad">Confirmed by your data</StatusPill><span>Your own figures show the impact.</span></div>
-        </HowItWorks>} />
+    <div className="eos-pad" style={{ paddingBottom: 24 }}>
+      <div className="eos-hd">
+        <div>
+          <div className="label">Team Action Queue</div>
+          <h1>
+            {sum ? (sum.to_review ? <><span style={{ color: "var(--critical-ink)" }}>{count(sum.to_review, "alert")}</span> waiting across {count(sum.teams.length, "team")}</> : "All caught up") : "Alerts"}
+          </h1>
+          <p className="sub">Reviewed individually — each alert keeps its own note and audit trail.</p>
+        </div>
+        <button className="btn btn--ghost btn--sm" type="button" onClick={load}><Icon name="refresh" />Refresh</button>
+      </div>
+
       {err != null && <LoadError error={err} onRetry={load} what="the alerts" />}
 
-      {(items !== null || err == null) && <div className="filters ap-filters">
-        <FlowFilter toned label="Which alerts" value={show} onChange={setShow} all={{ key: "all", label: "All", count: nAt("all") }}
-          steps={([["new", "To review", "queued"], ["acknowledged", "Acknowledged", "held"], ["resolved", "Resolved", "done"]] as const)
-            .map(([key, label, state]) => ({ key, label, count: nAt(key), state }))}
-          after={s && s.all_teams.length > 1 && <select className="ff-sel" aria-label="Filter by team" data-on={team ? "" : undefined} value={team} onChange={e => setTeam(e.target.value)}>
-            <option value="">All teams</option>
-            {s.all_teams.map(t => <option key={t} value={t}>{t} ({nAt(show, t)})</option>)}</select>} />
-      </div>}
+      {/* Mobile compact filter bar (<=900px): keeps 4 alerts visible above the fold */}
+      {!mobDetail && (
+        <div className="eos-mob-fbar">
+          <div className="eos-mob-fchips">
+            <span className="chip" style={{ fontWeight: 600 }}>{statusLabels[show]} ({nAt(show) ?? 0})</span>
+            {team && <span className="chip">{team}</span>}
+            {levelFilter && <span className="chip">{LEVEL_LABEL[levelFilter as keyof typeof LEVEL_LABEL] ?? levelFilter}</span>}
+            {eventFilter && (
+              <span className="chip" style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--accent-soft)", color: "var(--accent-ink)", borderColor: "var(--accent-line)", fontWeight: 600 }}>
+                <span>{eventFilterLabel}</span>
+                <button type="button" onClick={clearEventFilter} aria-label="Clear event filter" style={{ border: 0, background: "transparent", color: "inherit", cursor: "pointer", padding: "0 2px", fontSize: 15, lineHeight: 1 }}>×</button>
+              </span>
+            )}
+          </div>
+          <button type="button" className="btn eos-mob-fbtn" aria-expanded={filterSheetOpen} aria-controls="alerts-filter-sheet" onClick={() => setFilterSheetOpen(true)}>
+            <Icon name="search" />
+            <span>Filters</span>
+            {activeFilterCount > 0 && <span className="eos-mob-fcnt">{activeFilterCount}</span>}
+          </button>
+        </div>
+      )}
 
-      {shown === null ? (err == null && <div className="mt12"><ListSkeleton rows={3} /></div>)
-        : !shown.length ? <Empty icon="check" title={show === "new" ? "All caught up" : "Nothing here"}
-          actions={show === "new" ? <Link className="btn" to="/events"><Icon name="events" />See events</Link> : undefined}>
-          {show === "new" ? "When an event could hit your products, the owning team's alert appears here." : "No alerts in this group."}</Empty>
-        : <div className="ap-groups">
-          {groups.map(g => section(g[0].event_id, g))}
-          {done.length > 0 && <section className="quiet" aria-labelledby="ap-done">
-            <h2 id="ap-done">Already taken on <span>{done.length}</span></h2>
-            <p className="ap-sub2">Acknowledged or resolved: someone has these in hand.</p>
-            {taken && <ol className="ap-lines">{done.map(a => <AlertLine key={a.alert_id} a={a} ev={events[a.event_id]} label primary={false} onChange={update} />)}</ol>}
-            <button type="button" className="ap-more" aria-expanded={taken} onClick={() => setTaken(!taken)}>
-              <Icon name="chevron" className={`ico16 ${taken ? "rot" : ""}`} />{taken ? "Show fewer" : `Show the ${done.length}`}</button>
-          </section>}
-        </div>}
+      {/* Desktop inline filter bar */}
+      <div className={`eos-filterbar eos-alerts-fbar-desk${mobDetail ? " eos-mob-hide" : ""}`} style={{ marginBottom: 0 }}>
+        <SearchInput value={query} onChange={setQuery} ariaLabel="Search alerts" placeholder="Search alerts, products, teams, or events…" count={queue?.length} />
+        <SelectMenu label="Filter by severity" value={levelFilter} onChange={setLevelFilter} options={[
+          { value: "", label: "All severities" },
+          { value: "adverse", label: "Confirmed" },
+          { value: "developing", label: "Showing early signs" },
+          { value: "warning", label: "Early warning" },
+        ]} />
+        {sum && sum.all_teams.length > 1 && (
+          <SelectMenu label="Filter by team" value={team} onChange={setTeam} options={[
+            { value: "", label: `All teams (${sum.all_teams.length})` },
+            ...sum.all_teams.map(t => ({ value: t, label: `${t} (${nAt(show, t)})` })),
+          ]} />
+        )}
+        <FlowFilter toned label="Which alerts" value={show} onChange={s => { setShow(s); setMobOpen(false); }} all={{ key: "all", label: "All", count: nAt("all") }}
+          steps={([["new", "To review", "queued"], ["acknowledged", "Acknowledged", "held"], ["resolved", "Resolved", "done"]] as const)
+            .map(([key, label, state]) => ({ key, label, count: nAt(key), state }))} />
+        {eventFilter && (
+          <span className="chip" style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "var(--accent-soft)", color: "var(--accent-ink)", borderColor: "var(--accent-line)", fontWeight: 600 }}>
+            <span>Filtered by event: {eventFilterLabel}</span>
+            <button type="button" onClick={clearEventFilter} aria-label="Clear event filter"
+              style={{ border: 0, background: "transparent", color: "inherit", cursor: "pointer", padding: "0 2px", fontSize: 15, lineHeight: 1 }}>×</button>
+          </span>
+        )}
+      </div>
+
+      {/* Mobile slide-up Filter Sheet (>=44x44px tap targets) */}
+      {filterSheetOpen && (
+        <div className="eos-sheet-bg" role="dialog" aria-modal="true" aria-label="Filter alerts" id="alerts-filter-sheet"
+          onClick={e => { if (e.target === e.currentTarget) setFilterSheetOpen(false); }}>
+          <div className="eos-sheet">
+            <div className="eos-sheet-hd">
+              <strong>Filter Alerts</strong>
+              <div className="row" style={{ gap: 8 }}>
+                {activeFilterCount > 0 && (
+                  <button type="button" className="btn btn--ghost eos-sheet-act" onClick={resetFilters}>Reset</button>
+                )}
+                <button type="button" className="btn btn--primary eos-sheet-act" onClick={() => setFilterSheetOpen(false)}>Done</button>
+              </div>
+            </div>
+            <div className="eos-sheet-sec">
+              <span className="label">Search</span>
+              <SearchInput value={query} onChange={setQuery} ariaLabel="Search alerts" placeholder="Search alerts, products, teams, or events…" count={queue?.length} />
+            </div>
+            <div className="eos-sheet-sec">
+              <span className="label">Status</span>
+              <div className="eos-sheet-grid">
+                {(["all", "new", "acknowledged", "resolved"] as const).map(k => (
+                  <button key={k} type="button" className={`eos-sheet-pill${show === k ? " is-active" : ""}`}
+                    aria-pressed={show === k} onClick={() => { setShow(k); setMobOpen(false); }}>
+                    <span>{statusLabels[k]}</span>
+                    <span className="mono">{nAt(k) ?? 0}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="eos-sheet-sec">
+              <span className="label">Severity &amp; Team</span>
+              <div className="eos-sheet-grid">
+                <SelectMenu label="Filter by severity" value={levelFilter} onChange={setLevelFilter} options={[
+                  { value: "", label: "All severities" },
+                  { value: "adverse", label: "Confirmed" },
+                  { value: "developing", label: "Showing early signs" },
+                  { value: "warning", label: "Early warning" },
+                ]} />
+                {sum && sum.all_teams.length > 1 && (
+                  <SelectMenu label="Filter by team" value={team} onChange={setTeam} options={[
+                    { value: "", label: `All teams (${sum.all_teams.length})` },
+                    ...sum.all_teams.map(t => ({ value: t, label: `${t} (${nAt(show, t)})` })),
+                  ]} />
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {queue === null ? (err == null && <div className="mt12"><ListSkeleton rows={4} /></div>)
+        : queue.length === 0 ? <div className="mt16"><Empty icon="check" title="No alerts in this view" actions={<Link className="btn" to="/events">View open events</Link>}>Adjust filters or check back after the next sweep.</Empty></div>
+        : (
+          <div className={`eos-split eos-alerts-split${mobOpen ? " is-mob-detail" : ""}`}>
+            {/* Left Queue */}
+            <div className="eos-list" onMouseLeave={() => window.clearTimeout(hoverTimer.current)}>
+              {queue.map(a => (
+                <button key={a.alert_id} type="button" className="eos-row" data-selected={cur?.alert_id === a.alert_id}
+                  onClick={() => { window.clearTimeout(hoverTimer.current); setSelId(a.alert_id); setMobOpen(true); }}
+                  onMouseEnter={() => { window.clearTimeout(hoverTimer.current); hoverTimer.current = window.setTimeout(() => setSelId(a.alert_id), 90); }}>
+                  <div className="row" style={{ gap: 8 }}>
+                    {singleLevel ? (
+                      <span className={`eos-lvl-dot tone-${LEVEL_TONE[a.level]}`} aria-label={LEVEL_LABEL[a.level]} title={LEVEL_LABEL[a.level]} />
+                    ) : (
+                      <span className={`badge ${toneBadge(LEVEL_TONE[a.level])}`}>{LEVEL_LABEL[a.level]}</span>
+                    )}
+                    <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--ink-2)" }}>{a.owner}</span>
+                    <span className="mono small muted" style={{ marginLeft: "auto" }}>{ago(changed(a), now)}</span>
+                  </div>
+                  <strong style={{ color: "var(--ink)", fontSize: 14 }}>{what(a)}</strong>
+                  <span className="small muted">{evName(a)} · {count(a.effects.length, "impact")}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Right Live Inspector */}
+            {cur && (
+              <div className="eos-insp">
+                <button type="button" className="btn btn--ghost btn--sm eos-mob-back" onClick={() => setMobOpen(false)}>
+                  ← All alerts
+                </button>
+                <div className="eos-hd">
+                  <div>
+                    <div className="row wrap" style={{ gap: 6, marginBottom: 4 }}>
+                      <span className={`badge ${toneBadge(LEVEL_TONE[cur.level])}`}>{LEVEL_LABEL[cur.level]}</span>
+                      <span className="label">{cur.owner} · <Link to={`/events/${cur.event_id}`}>{evName(cur)} ↗</Link></span>
+                    </div>
+                    <h2 style={{ fontSize: 21, marginTop: 2 }}>{what(cur)}</h2>
+                  </div>
+                  <div className="row eos-alert-actions" style={{ gap: 8 }}>
+                    {cur.status === "acknowledged" && (
+                      <span className="eos-ack-win">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-strong)" strokeWidth="2.2"><circle cx="12" cy="12" r="10" /><path d="m8 12.5 2.5 2.5 5.5-5.5" /></svg>
+                        Acknowledged
+                      </span>
+                    )}
+                    {cur.status === "new" && !asking && (
+                      <button className="btn btn--primary" type="button" title={ACTION_MEANS.ack} onClick={() => setAsking("ack")}>Acknowledge</button>
+                    )}
+                    {cur.status !== "resolved" && !asking && (
+                      <button className="btn" type="button" title={ACTION_MEANS.resolve} onClick={() => setAsking("resolve")}>Resolve</button>
+                    )}
+                    {cur.status !== "new" && !asking && (
+                      <button className="btn btn--ghost btn--sm" type="button" disabled={busy} onClick={() => act(cur, "reopen")}>Reopen</button>
+                    )}
+                  </div>
+                </div>
+
+                {cur.status === "acknowledged" && <p className="small"><b>{person(cur.acknowledged_by)}</b> is on it{cur.acknowledged_at ? `, ${ago(cur.acknowledged_at, now)}` : ""}{cur.ack_note ? `: “${cur.ack_note}”` : ""}</p>}
+                {cur.status === "resolved" && <p className="small">Resolved by <b>{isAgent(cur.resolved_by) ? AGENT : person(cur.resolved_by)}</b>{cur.resolved_at ? `, ${ago(cur.resolved_at, now)}` : ""}{cur.resolved_note ? `: “${cur.resolved_note}”` : ""}</p>}
+
+                {asking && (
+                  <div className="eos-focal row wrap" style={{ gap: 8 }}>
+                    <input className="input" style={{ flex: 1, minWidth: 200 }} autoFocus value={note} onChange={e => setNote(e.target.value)}
+                      placeholder={asking === "ack" ? "Optional note for your team…" : "Optional resolution note…"}
+                      onKeyDown={e => { if (e.key === "Enter") act(cur, asking); if (e.key === "Escape") { setAsking(null); setNote(""); } }} />
+                    <button className="btn btn--primary btn--sm" type="button" disabled={busy} onClick={() => act(cur, asking)}>
+                      {asking === "ack" ? "Confirm acknowledge" : "Confirm resolve"}
+                    </button>
+                    <button className="btn btn--ghost btn--sm" type="button" onClick={() => { setAsking(null); setNote(""); }}>Cancel</button>
+                  </div>
+                )}
+
+                {/* ✦ Investigation Agent Assessment Table: AI Estimate vs. Your Data */}
+                <div className="eos-ai">
+                  <div className="eos-ai-hd">
+                    <span className="eos-spark" aria-hidden="true">✦</span>
+                    <span>
+                      Investigation Agent · {cur.effects.length !== products.length
+                        ? `${count(cur.effects.length, "possible impact")} across ${count(products.length, "product")}`
+                        : "Expected impact (AI) vs. your bank data"}
+                    </span>
+                  </div>
+                  <div className="eos-ai-bd">
+                    <table className="eos-tbl eos-alert-tbl">
+                      <thead>
+                        <tr><th>Product</th><th>Expected (AI estimate)</th><th>Your data says</th></tr>
+                      </thead>
+                      <tbody>
+                        {groupedEffects.map(([product, list]) => {
+                          const chains = [...new Set(list.map(e => e.chain_label).filter(Boolean))];
+                          const moves = [...new Map(list.map(e => {
+                            const txt = capFirst(impactText(e.metric_name, e.direction));
+                            const st = sizeTiming(e.size, e.timing);
+                            return [`${txt}|${st}`, { id: e.hypothesis_id, txt, st }];
+                          })).values()];
+                          const checks = [...new Map(list.map(e => {
+                            const m = e.check ? checkMove(e.check.what) : null;
+                            const key = m ? `${m.move}|${m.against}` : (cur.basis === "data" ? "__wait" : "__exp");
+                            return [key, { id: e.hypothesis_id, m }];
+                          })).values()];
+                          return (
+                            <tr key={product}>
+                              <td>
+                                <strong style={{ color: "var(--ink)" }}>{product}</strong>
+                                {list.length > 1 && <span className="small muted"> · {list.length} angles</span>}
+                                <div className="col" style={{ gap: 3, marginTop: 2 }}>
+                                  {chains.map((ch, idx) => (
+                                    <div key={idx} className="small muted">{chains.length > 1 ? `• ${ch}` : ch}</div>
+                                  ))}
+                                </div>
+                              </td>
+                              <td>
+                                <div className="col" style={{ gap: 6 }}>
+                                  {moves.map(mv => (
+                                    <div key={mv.id}>
+                                      <div style={{ color: "var(--ink)", fontWeight: 500 }}>{mv.txt}</div>
+                                      <div className="small muted">{mv.st}</div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </td>
+                              <td>
+                                <div className="col" style={{ gap: 6 }}>
+                                  {checks.map(ck => (
+                                    <div key={ck.id}>
+                                      {ck.m ? (
+                                        <><strong style={{ color: "var(--ink)" }}>{ck.m.move}</strong> <span className="small muted">{ck.m.against}</span></>
+                                      ) : (
+                                        <span className="badge b-noeffect">{cur.basis === "data" ? "Waiting for data" : "Expectations only"}</span>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="eos-ai-meta">
+                    <span>Basis: <b>{cur.basis === "data" ? "Validated against bank data" : "Expected (early warning)"}</b></span>
+                    {cur.top_finding && <span>Source: {article?.url ? <a href={article.url} target="_blank" rel="noreferrer">{cur.top_finding} ↗</a> : cur.top_finding}</span>}
+                    {src && <span>Via {src.label}</span>}
+                  </div>
+                </div>
+
+                <div>
+                  <span className="label">Impacted Products ({products.length})</span>
+                  <div className="row wrap" style={{ gap: 6, marginTop: 8 }}>
+                    {products.map(p => <span key={p} className="chip">{p}</span>)}
+                  </div>
+                </div>
+
+                <Fold summary={`Audit trail (${runs(cur).length} entries)`} defaultOpen={false} bodyClassName="eos-fold-bd col">
+                  <div className="col" style={{ gap: 4 }}>
+                    {runs(cur).map((r, i) => (
+                      <div key={i}><b>{CHANGE[r.change] ?? r.change}{r.n > 1 ? ` (${r.n}×)` : ""}</b> · <span className="mono">{dayTime(r.at)}</span>{r.by ? ` · ${person(r.by)}` : ""}{r.text ? <div className="small muted">{r.text}</div> : null}</div>
+                    ))}
+                  </div>
+                </Fold>
+              </div>
+            )}
+          </div>
+        )}
     </div>
   );
 }

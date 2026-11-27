@@ -8,7 +8,7 @@ import { investigationApi } from "../../api/investigation";
 import { inst, type Profile } from "../../api/institutions";
 import { monitorsApi, type CheckRow, type Monitor, type MonitorFinding } from "../../api/monitors";
 import type { Installation } from "../../App";
-import { FactList, PageHeader, TechnicalDetails } from "../../components/blocks";
+import { FactList, Fold, PageHeader, TechnicalDetails } from "../../components/blocks";
 import { Icon } from "../../components/Icon";
 import { LoadError, PageSkeleton, useNow, useRole, useToast } from "../../components/ui";
 import { ago, dayTime, due, person } from "../../format";
@@ -16,6 +16,7 @@ import { count, eventTitle, everyText, listText } from "../../plain";
 import { changed, draftedLine, MonitorForm } from "./monitorForm";
 import { CheckLine, FindingLine, headOf, lower, Progress, Versions, Watches, wentTo, who } from "./monitorParts";
 import { DraftFromProfile, MonitorActions, MonitorHelp, StatusBadge, useMonitorsStatus } from "./Monitors";
+import { PendingPreview } from "./MonitorInspector";
 import "../../styles/monitor-page.css";
 
 /** The answer in a sentence: what the last check found and where it went, or what the monitor waits for. */
@@ -140,6 +141,31 @@ export function MonitorPage() {
       {editMode ? <MonitorForm key={`${m?.monitor_id ?? "new"}-${formKey}`} m={m} profile={profile} status={status} onSaved={saved}
           onCancel={m ? () => setEditing(false) : undefined} runs={runs} onRun={runNow} running={!!checking} onRetire={() => act("retire")} />
         : m && <>
+          {(() => {
+            const pub = (m.live_spec ?? m.spec).public;
+            const ex = pub?.example_headlines;
+            const running = m.pending && m.live_spec ? ` · version ${m.live_version}, running` : "";
+            if (!pub?.in_one_sentence && (!ex || (!ex.match.length && !ex.not_match.length))) return <PendingPreview m={m} />;
+            return (
+              <section className="col" style={{ gap: 10 }}>
+                <PendingPreview m={m} />
+                {pub?.in_one_sentence && (
+                  <div className="eos-ai eos-ai--compact">
+                    <div className="eos-ai-hd"><span className="eos-spark" aria-hidden="true">✦</span>Plain-language brief{running}</div>
+                    <div className="eos-ai-bd">{pub.in_one_sentence}</div>
+                  </div>
+                )}
+                {ex && (ex.match.length > 0 || ex.not_match.length > 0) && (
+                  <Fold summary={`Example headlines${running} · ${ex.match.length} match, ${ex.not_match.length} don't`} defaultOpen={waits && !running}>
+                    <div className="col" style={{ gap: 6 }}>
+                      {ex.match.map((x, i) => <div key={`m-${i}`}><span className="badge b-ok" style={{ marginRight: 6 }}>Match</span>{x.headline}</div>)}
+                      {ex.not_match.map((x, i) => <div key={`n-${i}`}><span className="badge b-noeffect" style={{ marginRight: 6 }}>Ignore</span><span className="muted">{x}</span></div>)}
+                    </div>
+                  </Fold>
+                )}
+              </section>
+            );
+          })()}
           {(findings.length > 0 || m.status === "live" || m.status === "paused") && <section className="mp-sec" aria-labelledby="mp-found">
             <h2 id="mp-found">What it found <span>{findings.length}</span><Link className="mp-all" to="/findings">All findings</Link></h2>
             {findings.length ? findings.map(f => <FindingLine key={f.finding_id} f={f} events={events} m={m} />)

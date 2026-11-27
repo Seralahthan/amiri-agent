@@ -44,17 +44,38 @@ export function StatusPill({ tone, icon, children, title }: { tone: Tone; icon?:
   return <span className={`pill t-${tone}`} title={title}>{icon ? <Icon name={icon} /> : <span className="pd" aria-hidden="true" />}{children}</span>;
 }
 
-/** Bad or good for the institution: a word and a shape, never a bare arrow (a rise can be either). */
-export function ImpactMarker({ adverse }: { adverse: boolean | null }) {
-  if (adverse === null) return <StatusPill tone="grey">Unclear for you</StatusPill>;
-  return adverse ? <StatusPill tone="red" icon="bad">Bad for you</StatusPill> : <StatusPill tone="green" icon="good">Good for you</StatusPill>;
+/** Optically balanced 10×10 geometric tone icons (replaces uneven Unicode ▲ ◆ ● ■ glyphs). */
+export function ToneGlyph({ tone, colored = false }: { tone: "good" | "bad" | "mixed" | "neutral"; colored?: boolean }) {
+  const fill = colored
+    ? tone === "bad" ? "var(--critical)" : tone === "good" ? "var(--accent)" : tone === "mixed" ? "var(--high)" : "var(--ink-3)"
+    : "currentColor";
+  return (
+    <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true" style={{ flex: "none", display: "inline-block" }}>
+      {tone === "bad" && <polygon points="5,1.2 9.2,8.6 0.8,8.6" fill={fill} />}
+      {tone === "good" && <circle cx="5" cy="5" r="3.6" fill={fill} />}
+      {tone === "mixed" && <polygon points="5,0.8 9.2,5 5,9.2 0.8,5" fill={fill} />}
+      {tone === "neutral" && <rect x="1.8" y="1.8" width="6.4" height="6.4" rx="1.2" fill={fill} />}
+    </svg>
+  );
 }
 
-/** An event's overall effect on the institution. */
+/** Bad or good for the institution: unified Command screen shape + word notation (▲ bad, ● good, ◆ mixed, ■ neutral). */
+export function ImpactMarker({ adverse }: { adverse: boolean | null }) {
+  if (adverse === null) return <span className="badge b-noeffect"><ToneGlyph tone="neutral" />neutral</span>;
+  return adverse
+    ? <span className="badge b-down"><ToneGlyph tone="bad" />bad</span>
+    : <span className="badge b-ok"><ToneGlyph tone="good" />good</span>;
+}
+
+/** An event's overall effect on the institution — consistent across Command, Events, Findings, and Studio. */
 export function TonePill({ tone }: { tone: "good" | "bad" | "mixed" | "neutral" }) {
-  if (tone === "bad") return <ImpactMarker adverse={true} />;
-  if (tone === "good") return <ImpactMarker adverse={false} />;
-  return tone === "mixed" ? <StatusPill tone="amber">Mixed for you</StatusPill> : <StatusPill tone="grey">Neutral for you</StatusPill>;
+  const cls = tone === "bad" ? "b-down" : tone === "good" ? "b-ok" : tone === "mixed" ? "b-warn" : "b-noeffect";
+  return <span className={`badge ${cls}`}><ToneGlyph tone={tone} />{tone}</span>;
+}
+
+/** Highlighted deadline badge (e.g. "Open until 9 Dec", "Review by 1 Mar"). */
+export function DeadlineBadge({ children }: { children: ReactNode }) {
+  return <span className="eos-deadline"><Icon name="clock" /><span>{children}</span></span>;
 }
 
 export interface Tile { value: ReactNode; label: string; sub?: ReactNode; tone?: Tone; icon?: string }
@@ -133,9 +154,34 @@ export function Steps({ steps, label = "Progress" }: { steps: Step[]; label?: st
   );
 }
 
+/** Accessible disclosure panel matching .eos-fold styling with explicit aria-expanded + aria-controls. */
+export function Fold({ summary, defaultOpen = false, className = "eos-fold", bodyClassName = "eos-fold-bd", children }: {
+  summary: ReactNode; defaultOpen?: boolean; className?: string; bodyClassName?: string; children: ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const id = useId();
+  return (
+    <div className={`${className}${open ? " is-open" : ""}`}>
+      <button type="button" className="eos-fold-sum" aria-expanded={open} aria-controls={id} onClick={() => setOpen(o => !o)}>
+        {summary}
+      </button>
+      {open && <div id={id} className={bodyClassName}>{children}</div>}
+    </div>
+  );
+}
+
 /** Ids, versions, scores and raw reasons: closed until someone wants them. */
 export function TechnicalDetails({ children, summary = "Technical details" }: { children: ReactNode; summary?: string }) {
-  return <details className="tech"><summary>{summary}</summary><div className="tech-bd">{children}</div></details>;
+  const [open, setOpen] = useState(false);
+  const id = useId();
+  return (
+    <div className={`tech${open ? " is-open" : ""}`}>
+      <button type="button" className="tech-sum" aria-expanded={open} aria-controls={id} onClick={() => setOpen(o => !o)}>
+        {summary}
+      </button>
+      {open && <div id={id} className="tech-bd">{children}</div>}
+    </div>
+  );
 }
 
 /** A finding, as where it came from: the source, the headline (linked when there is one) and one line about it. */

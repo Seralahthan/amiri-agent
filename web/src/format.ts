@@ -4,7 +4,7 @@ export let TIME_ZONE = "UTC";
 export let ZONE_LABEL = "UTC";
 
 const dt = (opts: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en-GB", { timeZone: TIME_ZONE, ...opts });
-let fDayTime: Intl.DateTimeFormat, fTime: Intl.DateTimeFormat, fDay: Intl.DateTimeFormat, fFull: Intl.DateTimeFormat, dayKey: Intl.DateTimeFormat;
+let fDayTime: Intl.DateTimeFormat, fTime: Intl.DateTimeFormat, fDay: Intl.DateTimeFormat, fFull: Intl.DateTimeFormat, fBarDate: Intl.DateTimeFormat, dayKey: Intl.DateTimeFormat;
 
 /** "Asia/Ho_Chi_Minh" → "Ho Chi Minh". */
 export function setZone(zone: string) {
@@ -15,6 +15,7 @@ export function setZone(zone: string) {
   fTime = dt({ hour: "2-digit", minute: "2-digit", hour12: false });
   fDay = dt({ day: "numeric", month: "short" });
   fFull = dt({ weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
+  fBarDate = dt({ weekday: "short", day: "numeric", month: "short" });
   dayKey = dt({ year: "numeric", month: "2-digit", day: "2-digit" });
 }
 setZone("UTC");
@@ -33,6 +34,12 @@ export const dayTime = (iso: string) => noComma(fDayTime.format(new Date(iso)));
 export const day = (iso: string) => fDay.format(new Date(iso));
 export const dateKey = (iso: string) => dayKey.format(new Date(iso));  // a calendar day with its year, in the installation's zone
 export const fullNow = (d: Date) => noComma(fFull.format(d));
+/** Topbar institution clock parts: "Thu 26 Nov", "16:40", "Colombo". */
+export const barClock = (d: Date) => ({
+  date: fBarDate.format(d).replace(",", ""),
+  time: fTime.format(d),
+  zone: ZONE_LABEL,
+});
 
 export function ago(iso: string | null | undefined, now = new Date()): string {
   if (!iso) return "never";
@@ -124,4 +131,18 @@ export function clockText(iso: string, timeZone: string): string {
     .formatToParts(new Date(iso));
   const p = (t: Intl.DateTimeFormatPartTypes) => parts.find(x => x.type === t)?.value ?? "";
   return `${p("weekday")} ${p("day")} ${p("month")} · ${p("hour")}:${p("minute")}`;
+}
+
+/** The Scenario Studio days the price ramp moves on, as the server's price path does (server/app/studio/prices.py): day 1
+ *  is the start's local date, there is one bar per business day, and the ramp covers the first `ramp` of them. */
+export function rampDays(startAt: string, timeZone: string, steps: number, ramp: number): Set<number> {
+  const out = new Set<number>();
+  if (ramp <= 0) return out;
+  const [y, m, d] = new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone })
+    .format(new Date(startAt)).split("-").map(Number);
+  for (let day = 1; day <= steps && out.size < ramp; day++) {
+    const wd = new Date(Date.UTC(y, m - 1, d + day - 1)).getUTCDay();
+    if (wd !== 0 && wd !== 6) out.add(day);
+  }
+  return out;
 }

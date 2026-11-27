@@ -126,6 +126,24 @@ function ImportItems({ section, iid, onAdded }: { section: SectionName; iid: str
   );
 }
 
+/** Shared collapsible section header toggle (chevron badge + heading + optional count/sub). */
+export function SectionToggle({ title, count, sub, collapsed, onToggle }: {
+  title: ReactNode; count?: number; sub?: ReactNode; collapsed: boolean; onToggle: () => void;
+}) {
+  return (
+    <button type="button" className="eos-sec-toggle" aria-expanded={!collapsed} onClick={onToggle}>
+      <span className={`eos-sec-chev-wrap${collapsed ? " is-closed" : ""}`} aria-hidden="true">
+        <svg className={`eos-sec-chev${collapsed ? " is-closed" : ""}`} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M4.5 6.2 8 9.8l3.5-3.6" />
+        </svg>
+      </span>
+      <h2>{title}</h2>
+      {count !== undefined && <span className={`eos-sec-cnt${collapsed ? " is-closed" : ""}`}>{count}</span>}
+      {sub && <span className="small muted" style={{ fontWeight: 400 }}>{sub}</span>}
+    </button>
+  );
+}
+
 export function SectionList({ section, ctx, reload, suggest, extra, compact, itemAction }: {
   section: SectionName; ctx: Ctx; reload: () => void; suggest?: boolean; extra?: ReactNode; compact?: boolean;
   itemAction?: (it: Item) => ReactNode;
@@ -134,6 +152,7 @@ export function SectionList({ section, ctx, reload, suggest, extra, compact, ite
   const [editing, setEditing] = useState<Item | null | "new">(null);
   const [deleting, setDeleting] = useState<{ item: Item; referrers?: { section: string; id: string; field: string }[] } | null>(null);
   const [suggesting, setSuggesting] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const items = ctx.profile?.sections[section] ?? [];
   const archived = ctx.profile?.institution.status === "archived";
   const iid = ctx.profile?.institution.institution_id ?? "";
@@ -148,15 +167,16 @@ export function SectionList({ section, ctx, reload, suggest, extra, compact, ite
     }
   };
   return (
-    <div className="card pf-list">
-      <div className="hd"><h2>{LABELS[section].many}</h2><span className="tabs" style={{ border: 0, margin: 0 }}><span className="count">{items.length}</span></span>
+    <div className={`card pf-list eos-sec-card${collapsed ? " is-collapsed" : ""}`}>
+      <div className="hd">
+        <SectionToggle title={LABELS[section].many} count={items.length} collapsed={collapsed} onToggle={() => setCollapsed(c => !c)} />
         <span className="spacer" />
         {extra}
         {suggest && !archived && <button className="btn btn--sm" type="button" onClick={() => setSuggesting(true)}><Icon name="search" />Suggestions</button>}
         {!archived && <ImportItems section={section} iid={iid} onAdded={reload} />}
         {!archived && <button className="btn btn--sm" type="button" onClick={() => setEditing("new")}><Icon name="plus" />Add</button>}
       </div>
-      {!items.length ? <div className="bd pf-none">None yet.{suggest ? " Use Suggestions to start from the usual ones, or Add your own." : ""}</div> : (
+      {!collapsed && (!items.length ? <div className="bd pf-none">None yet.{suggest ? " Use Suggestions to start from the usual ones, or Add your own." : ""}</div> : (
         <div className="list">{items.map(it => {
           const x = describe(section, it, ctx);
           // icon buttons named for their row: "Delete rival Sampath Bank", not five identical "Delete"s
@@ -175,7 +195,7 @@ export function SectionList({ section, ctx, reload, suggest, extra, compact, ite
             </div>
           );
         })}</div>
-      )}
+      ))}
       {editing && <ItemModal section={section} ctx={ctx} editing={editing === "new" ? null : editing}
         onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reload(); }} />}
       {deleting && (
@@ -287,6 +307,7 @@ export function LinkGrid({ ctx, rows, cols, field, reload, title }: {
   const start = () => Object.fromEntries(R.map(r => [r.id, new Set<string>(r[field] ?? [])]));
   const [m, setM] = useState<Record<string, Set<string>>>(start);
   const [busy, setBusy] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   useEffect(() => { setM(start()); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [ctx.profile?.institution.profile_version]);
   if (!R.length || !C.length) return null;
   const dirty = R.filter(r => JSON.stringify([...m[r.id] ?? []].sort()) !== JSON.stringify([...(r[field] ?? [])].sort()));
@@ -302,11 +323,13 @@ export function LinkGrid({ ctx, rows, cols, field, reload, title }: {
   const place = (c: string) => ctx.profile?.place_names?.[c] ?? c;
   const rowLabel = (r: Item) => rows === "flows" ? `${cw(FLOW_WORDS[r.kind] ?? r.kind)}${r.goods ? ` (${r.goods})` : ""}: ${place(r.counterpart)}` : r[LABELS[rows].nameKey];
   return (
-    <div className="card">
-      <div className="hd"><h2>{title}</h2><span className="spacer" />
+    <div className={`card eos-sec-card${collapsed ? " is-collapsed" : ""}`}>
+      <div className="hd">
+        <SectionToggle title={title} count={R.length} collapsed={collapsed} onToggle={() => setCollapsed(c => !c)} />
+        <span className="spacer" />
         {dirty.length > 0 && <><button className="btn btn--sm" type="button" onClick={() => setM(start())}>Undo</button>
           <button className="btn btn--sm btn--primary" type="button" disabled={busy} onClick={save}>Save {plural(dirty.length, "change")}</button></>}</div>
-      <div className="tblwrap"><table className="tbl">
+      {!collapsed && <div className="tblwrap"><table className="tbl">
         <thead><tr><th><span className="sr">{LABELS[rows].many} and {LABELS[cols].many}</span></th>{C.map(c => <th key={c.id} style={{ textAlign: "center", whiteSpace: "normal", minWidth: 90 }}>{c[LABELS[cols].nameKey]}</th>)}</tr></thead>
         <tbody>{R.map(r => (
           <tr key={r.id}><td className="strong">{rowLabel(r)}</td>
@@ -314,7 +337,7 @@ export function LinkGrid({ ctx, rows, cols, field, reload, title }: {
               <input type="checkbox" aria-label={`${rowLabel(r)}: ${c[LABELS[cols].nameKey]}`} style={{ accentColor: "var(--accent)" }} checked={m[r.id]?.has(c.id) ?? false}
                 onChange={e => setM(x => { const n = { ...x, [r.id]: new Set(x[r.id]) }; if (e.target.checked) n[r.id].add(c.id); else n[r.id].delete(c.id); return n; })} /></td>)}
           </tr>))}</tbody>
-      </table></div>
+      </table></div>}
     </div>
   );
 }

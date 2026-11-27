@@ -6,7 +6,7 @@
 .rd .ph-status { font-size:var(--fs-lg); color:var(--ink-2); max-width:62ch; }
 .rd .btn--lg { border-radius:var(--r-pill); box-shadow:none; }
 /* the headline counts are green and still: numbers aren't animated; only a named thing (an event, a monitor) may glow */
-.rd-n { color:var(--ink); font-variant-numeric:tabular-nums; }
+.rd-n { color:var(--ink); font-variant-numeric:proportional-nums; }
 .rd-n.read { color:var(--accent); }
 .rd-n.ok { color:var(--accent); }
 .rd-link { display:inline-flex; align-items:center; gap:6px; padding:6px 0; border:0; background:none; cursor:pointer; font:600 16px/1.4 var(--font-ui); color:var(--accent-ink); }
@@ -26,41 +26,38 @@
 .rd-filters { display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin:32px 0 0; }
 
 /* the two panes */
-/* the two panes fill the rest of the screen and scroll inside themselves; the page doesn't move */
-.rd-split { flex:1 1 0; min-height:420px; display:grid; grid-template-columns:minmax(0,5fr) minmax(0,7fr); gap:40px; margin-top:20px; }
+.rd-split { flex:1 1 0; min-height:480px; display:grid; grid-template-columns:minmax(300px, 39%) minmax(0, 1fr); gap:0; margin-top:12px; border-top:1px solid var(--hairline); }
 .rd-split > * { min-height:0; }
-/* one card per day, as tall as its stories; unfiltered, the list takes the height of the day at its top (set in Radar.tsx) */
-.rd-index > ol { height:100%; transition:height .25s ease; box-sizing:border-box; overflow:auto; overscroll-behavior:contain; overflow-anchor:none;
-  display:flex; flex-direction:column; gap:16px; list-style:none; margin:0; padding:0 6px 0 0; }
-.rd-card { flex:none; box-sizing:border-box; padding:4px 20px 12px; border-radius:14px;
-  background:color-mix(in srgb, var(--accent) 8%, var(--surface)); box-shadow:inset 0 0 0 1px transparent; transition:background .2s, box-shadow .2s; }
-/* the day the tabs are counting (scrolled to, or under the mouse) is a shade greener and outlined */
-.rd-card.on { background:color-mix(in srgb, var(--accent) 14%, var(--surface)); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }
+.rd-index { border-right:1px solid var(--hairline); }
+.rd-index > ol { height:100%; transition:height .2s ease; box-sizing:border-box; overflow:auto; overscroll-behavior:contain; overflow-anchor:none;
+  display:flex; flex-direction:column; gap:0; list-style:none; margin:0; padding:0 0 24px; }
+/* Cardless hairline date groups matching Alerts, Events, Monitors, and Market Series */
+.rd-card { flex:none; box-sizing:border-box; padding:0 0 8px; border-radius:0; background:transparent; box-shadow:none; border-bottom:1px solid var(--hairline); }
+.rd-card.on { background:transparent; box-shadow:none; }
 .rd-card ol { list-style:none; margin:0; padding:0; }
-/* the full list lands one day at a time with the browser's own snap; off while a day is unfolded, so it reads through freely */
-.rd-index > ol.snap { scroll-snap-type:y mandatory; }
-.rd-index > ol.snap > .rd-card { scroll-snap-align:start; }
-.rd-index .rd-card .rd-fold { width:auto; margin-top:2px; padding:12px 0 4px; border:0; font:600 16px/1.4 var(--font-ui); color:var(--accent-ink); }
-.rd-day { display:block; padding:16px 0 8px; font-size:14px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-3); }
-.rd-index li button { display:flex; gap:12px; align-items:baseline; width:100%; padding:10px 12px 10px 0; border:0; border-top:1px solid var(--hairline);
-  background:none; text-align:left; cursor:pointer; font:inherit; color:inherit; }
+.rd-index > ol.snap { scroll-snap-type:none; }
+.rd-index .rd-card .rd-fold { width:auto; margin:2px 0 0 14px; padding:10px 0 4px; border:0; font:600 13.5px/1.4 var(--font-ui); color:var(--accent-ink); }
+.rd-day { display:block; padding:12px 14px 6px; font-size:11px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:var(--ink-3); }
+.rd-index li button { display:flex; gap:10px; align-items:baseline; width:100%; padding:11px 14px; border:0; border-top:1px solid var(--hairline);
+  background:transparent; text-align:left; cursor:pointer; font:inherit; color:inherit; position:relative;
+  transition:background 140ms var(--ease-out), color 140ms var(--ease-out); }
+.rd-index li button:hover { background:var(--hover-bg); }
 .rd-it { display:flex; flex-direction:column; gap:2px; min-width:0; }
-.rd-tt { font-size:16px; font-weight:600; line-height:1.4; color:var(--ink); }
-/* one line each, like a mail list beside its reader: rows keep one height so a day card fits; the full title is on hover and in the reader */
+.rd-tt { font-size:var(--fs-sm); font-weight:600; line-height:1.35; color:var(--ink); }
 .rd-tt, .rd-sub { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.rd-sub { font-size:14px; color:var(--ink-3); }
-.rd-index button:not(.sent) .rd-tt { font-weight:500; color:var(--ink-2); }  /* held back and dismissed: quieter, still readable */
-.rd-index button:hover .rd-tt { text-decoration:underline; text-underline-offset:3px; }
-.rd-index button[aria-current="true"] { box-shadow:inset -3px 0 0 var(--accent); }
+.rd-sub { font-size:var(--fs-xs); color:var(--ink-3); }
+.rd-index button:not(.sent) .rd-tt { font-weight:500; color:var(--ink-2); }
+.rd-index button:hover .rd-tt { text-decoration:none; }
+.rd-index button[aria-current="true"] { background:var(--pane); box-shadow:inset 3px 0 0 var(--accent-strong); }
 .rd-index button[aria-current="true"] .rd-tt { color:var(--accent-ink); }
 .rd-index button:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
-.rd-dot { flex:none; width:8px; height:8px; border-radius:50%; background:var(--ink-3); opacity:.45; transform:translateY(-1px); }
+.rd-dot { flex:none; width:7px; height:7px; border-radius:50%; background:var(--ink-3); opacity:.45; transform:translateY(-1px); }
 .sent > .rd-dot { background:var(--accent); opacity:1; }
 .dismissed > .rd-dot { background:none; border:1.5px solid var(--ink-3); }
 
 /* the chosen story */
-.rd-read { overflow:auto; padding-right:8px; font-size:17px; line-height:1.55; color:var(--ink-2); max-width:72ch; }
-.rd-read h2 { margin:6px 0 12px; font-size:30px; line-height:1.2; letter-spacing:-.02em; color:var(--ink); text-wrap:balance; }
+.rd-read { background:var(--pane); padding:20px 24px; overflow:auto; font-size:var(--fs-md); line-height:1.55; color:var(--ink-2); min-width:0; }
+.rd-read h2 { margin:6px 0 12px; font-size:22px; line-height:1.25; letter-spacing:-.02em; color:var(--ink); text-wrap:balance; }
 .rd-read p { margin:0 0 12px; }
 .rd-acts { display:flex; flex-wrap:wrap; align-items:center; gap:10px 14px; margin:0 0 18px; }
 .rd-out { font-size:16px; font-weight:600; color:var(--accent-ink); }
@@ -77,11 +74,13 @@
 .rd-heads li { display:flex; flex-direction:column; padding:8px 0; border-top:1px solid var(--hairline); }
 .rd-heads span { font-size:14px; color:var(--ink-3); }
 
-@media (max-width:1000px) {
+@media (max-width:1100px) {
   .rd { height:auto; min-height:100%; }  /* stacked: the page grows and scrolls */
-  .rd-split { flex:none; grid-template-columns:1fr; gap:32px; }
-  .rd-index > ol { height:70vh; }
-  .rd-read { overflow:visible; }
+  .rd-split { flex:none; grid-template-columns:minmax(0, 1fr); gap:16px; min-height:0; }
+  .rd-index { border-right:0; border-bottom:1px solid var(--hairline); min-width:0; max-width:100%; }
+  .rd-index > ol { height:auto; max-height:52vh; }
+  .rd-read { overflow:visible; padding:16px; min-width:0; max-width:100%; overflow-wrap:anywhere; }
+  .rd-link { font-size:13px; flex-wrap:wrap; max-width:100%; }
 }
 @media (max-width:600px) { .rd .ph-title h1 { font-size:34px; } }
 /* second layer of the chosen story: what happened, places, sources; the headlines sit one layer deeper */

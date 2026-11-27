@@ -9,8 +9,9 @@ import { chat, type AssistantStatus, type Change, type ChatMessage, type Proposa
 import { dayTime, plural } from "../format";
 import { Icon } from "./Icon";
 import { useInstallation } from "../App";
-import { changeWords, continuedTo, continueText, fieldWord, nextOpen, startersFor, trackFor, valueText, waitingForAnswer } from "./setupFlow";
-import { ChatToggleCtx, MenuButton, Modal, StatusIcon, useRole, useToast } from "./ui";
+import { SelectMenu } from "./SelectMenu";
+import { changeWords, continuedTo, continueText, fieldWord, nextOpen, SECTION_ONE, startersFor, trackFor, valueText, waitingForAnswer } from "./setupFlow";
+import { ChatToggleCtx, Modal, useRole, useToast } from "./ui";
 import "../styles/setup.css";
 
 // Applying the new institution remounts the chat (it now belongs to the institution): the move to the next
@@ -29,14 +30,21 @@ const PSTATE: Record<Proposal["status"], [cls: string, icon: string, words: stri
   expired: ["b-noeffect", "clock", "Expired"], failed: ["b-down", "bad", "Failed"],
 };
 
-/** One change on a proposal card: "Add **Bank of Ceylon** as a rival", then each changed field as before → after. */
+/** One change on a proposal card: emerald Add / amber Edit / red Remove pill + section label + value/diff. */
 function ChangeRow({ c }: { c: Change }) {
   const w = changeWords(c, "propose");
+  const opCls = c.op === "create" ? "eos-op-add" : c.op === "delete" ? "eos-op-del" : "eos-op-edit";
+  const opWord = c.op === "create" ? "Add" : c.op === "delete" ? "Remove" : "Edit";
+  const secLabel = SECTION_ONE[c.section] ?? c.section.replace(/-/g, " ");
   return (
-    <div className="pchange">
-      <span className="pc-line">{w.lead} {w.name && <b>{w.name}</b>} {w.tail}</span>
-      {c.op === "update" && c.after && <div className="diff">{Object.keys(c.after).map(k => (
-        <Fragment key={k}><span className="k">{fieldWord(k)}</span><span><del>{valueText(c.before?.[k])}</del> <span aria-hidden="true">→</span> <ins>{valueText(c.after?.[k])}</ins></span></Fragment>))}</div>}
+    <div className="eos-prop-row">
+      <span className={`eos-op ${opCls}`}>{opWord}</span>
+      <span className="eos-prop-sec">{secLabel}</span>
+      <div className="eos-prop-val">
+        <div>{w.name ? <b>{w.name}</b> : w.lead}{w.name && w.tail ? <span className="muted"> · {w.tail}</span> : null}</div>
+        {c.op === "update" && c.after && <div className="diff" style={{ marginTop: 4 }}>{Object.keys(c.after).map(k => (
+          <Fragment key={k}><span className="k">{fieldWord(k)}</span><span><del>{valueText(c.before?.[k])}</del> <span aria-hidden="true">→</span> <ins>{valueText(c.after?.[k])}</ins></span></Fragment>))}</div>}
+      </div>
     </div>
   );
 }
@@ -55,28 +63,36 @@ function ProposalCard({ p, onDecided }: { p: Proposal; onDecided: (p: Proposal) 
   };
   const [badge, icon, said] = PSTATE[p.status];
   return (
-    <div className="proposal" data-proposal={p.proposal_id}>
-      <div className="ph"><Icon name="edit" className="ico16" /><b style={{ flex: 1 }}>{p.status === "pending" ? "Shall I apply these changes?" : p.summary}</b><span className={`badge pstate ${badge}`}><Icon name={icon} />{said}</span></div>
-      <div className="pb">
-        {p.status === "pending" && <span className="small" style={{ color: "var(--ink)" }}>{p.summary}</span>}
-        {p.kind === "monitors" ? p.changes.map((c, i) => (
-          <div key={i} className="col" style={{ gap: 2 }}>
-            <span className="small">{c.op === "create" ? "New monitor" : "Change monitor"} <b>{c.after?.name}</b></span>
-            <span className="small muted">{c.after?.sentence}</span>
-            <ul className="small" style={{ margin: 0, paddingLeft: 18 }}>{(c.after?.tell_me_if ?? []).map((l: string) => (
-              <li key={l}>{c.before && !(c.before.tell_me_if ?? []).includes(l) ? <ins>{l}</ins> : l}</li>))}</ul>
-            <span className="small muted">Where: {valueText(c.after?.places)} · every {c.after?.check_frequency >= 1440 ? "day" : c.after?.check_frequency >= 360 ? "6 hours" : "hour"}</span>
-          </div>)) : p.changes.map((c, i) => <ChangeRow key={i} c={c} />)}
-        {p.kind === "monitors" && p.status === "pending" && <div className="note">Applying submits {p.changes.length === 1 ? "it" : "them"} for approval; a Risk Manager makes {p.changes.length === 1 ? "it" : "them"} live on the Monitors page.</div>}
-        {p.kind === "monitors" && p.status === "confirmed" && <span className="small">{(p.result?.monitors ?? []).map((m: { monitor_id: string; name: string }) => (
-          <Link key={m.monitor_id} to={`/monitors/${m.monitor_id}`} style={{ marginRight: 8 }}>{m.name} →</Link>))}</span>}
-        {p.warnings.length > 0 && <div className="note">{p.warnings.map(w => w.message).join(" · ")}</div>}
-        {p.status === "failed" && p.result && <div className="rawerr">{String(p.result.detail ?? "")}</div>}
-        {p.status === "pending" && p.fits === false && <div className="rawerr">No longer fits: the profile changed since ({p.fit_errors.map(e => e.message).join("; ")}). Ask the agent to redo it.</div>}
+    <div className="eos-prop" data-proposal={p.proposal_id}>
+      <div className="eos-prop-hd">
+        <div className="row" style={{ justifyContent: "space-between", gap: 6 }}>
+          <span className="eos-prop-k">{p.status === "pending" ? "Proposed change · Waits for you" : "Proposed change"}</span>
+          {p.status !== "pending" && <span className={`badge pstate ${badge}`}><Icon name={icon} />{said}</span>}
+        </div>
+        <h4>{p.summary}</h4>
       </div>
-      {p.status === "pending" && <div className="pf"><span className="small muted" style={{ flex: 1 }}>{p.deletes >= 3 ? `Removes ${p.deletes} items. ` : ""}Nothing changes until you apply.</span>
-        <button className="btn btn--sm" type="button" disabled={busy} onClick={() => decide("reject")}>Not now</button>
-        <button className="btn btn--sm btn--primary" type="button" disabled={busy || p.fits === false} onClick={() => decide("confirm")}>Apply</button></div>}
+      <div className="eos-prop-bd">
+        {p.kind === "monitors" ? p.changes.map((c, i) => (
+          <div key={i} className="eos-prop-row">
+            <span className={`eos-op ${c.op === "create" ? "eos-op-add" : "eos-op-edit"}`}>{c.op === "create" ? "Add" : "Edit"}</span>
+            <span className="eos-prop-sec">Monitor</span>
+            <div className="eos-prop-val">
+              <b>{c.after?.name}</b>
+              <div className="small muted">{c.after?.sentence}</div>
+            </div>
+          </div>)) : p.changes.map((c, i) => <ChangeRow key={i} c={c} />)}
+        {p.kind === "monitors" && p.status === "pending" && <div className="eos-prop-note">Applying submits {p.changes.length === 1 ? "it" : "them"} for approval on Monitors.</div>}
+        {p.kind === "monitors" && p.status === "confirmed" && <div className="eos-prop-note">{(p.result?.monitors ?? []).map((m: { monitor_id: string; name: string }) => (
+          <Link key={m.monitor_id} to={`/monitors/${m.monitor_id}`} style={{ marginRight: 8, fontWeight: 600 }}>{m.name} →</Link>))}</div>}
+        {p.warnings.length > 0 && <div className="eos-prop-note">{p.warnings.map(w => w.message).join(" · ")}</div>}
+        {p.status === "failed" && p.result && <div className="rawerr" style={{ margin: "8px 12px" }}>{String(p.result.detail ?? "")}</div>}
+        {p.status === "pending" && p.fits === false && <div className="rawerr" style={{ margin: "8px 12px" }}>No longer fits: {p.fit_errors.map(e => e.message).join("; ")}. Ask the agent to redo it.</div>}
+      </div>
+      {p.status === "pending" && <div className="eos-prop-ft">
+        <span className="eos-prop-fits">{p.fits === false ? "Needs update" : "✓ Fits the profile"}</span>
+        <button className="btn btn--sm" type="button" disabled={busy} onClick={() => decide("reject")}>Reject</button>
+        <button className="btn btn--sm btn--primary" type="button" disabled={busy || p.fits === false} onClick={() => decide("confirm")}>Apply</button>
+      </div>}
       {sure && <Modal title={`Remove ${p.deletes} items?`} onClose={() => setSure(false)} footer={<>
         <button className="btn" type="button" onClick={() => setSure(false)}>Cancel</button>
         <button className="btn btn--danger" type="button" onClick={() => decide("confirm", p.deletes)}>Yes, remove {p.deletes}</button></>}>
@@ -85,9 +101,6 @@ function ProposalCard({ p, onDecided }: { p: Proposal; onDecided: (p: Proposal) 
     </div>
   );
 }
-
-const TRACK_STATUS = { not_started: "open", in_progress: "partial", concluded: "done" } as const;
-const TRACK_WORDS = { not_started: "not started", in_progress: "in progress", concluded: "done" } as const;
 
 /** Where the page is: a guided-setup step or an Institution tab, and how to name it ("Step 3 · Customers"). */
 export interface ChatAt { step?: string; tab?: string; label?: string }
@@ -342,19 +355,29 @@ export function SetupChat({ institutionId, onTrack, onApplied, at, askKey = 0 }:
       busy={busy} onAnswer={(qid, options) => send({ answer: { question_id: qid, options } })} onDecided={decided} />);
   }
 
+  const agentState: "working" | "live" | "starting" | "offline" =
+    status?.connected ? (working ? "working" : "live")
+    : status?.starting ? "starting"
+    : "offline";
+
   return (
-    <div className="col" style={{ height: "100%", minHeight: 0 }}>
-      <div className="chathead">
-        <div className="row"><Icon name="chat" className="ico16" /><b>Setup agent</b><span className="spacer" />
-          {chatToggle && <button className="btn btn--sm btn--ghost" type="button" onClick={chatToggle.toggle} aria-label="Hide the setup agent">Hide<Icon name="x" /></button>}</div>
-        <div className="helping">
-          <span className="helping-l">Helping with: <b>{hereLabel ?? "anything about your profile"}</b></span>
-          <MenuButton label="Topic">
-            {shownTracks.map(t => (
-              <button key={t.track} type="button" className="btn btn--ghost" aria-current={here === t.track ? "true" : undefined}
-                title={t.summary ?? undefined} onClick={() => pick(t)}>
-                <StatusIcon status={TRACK_STATUS[t.status]} label={`${t.label}: ${TRACK_WORDS[t.status]}`} />{t.label}</button>))}
-          </MenuButton>
+    <div className="eos-agent-inner" data-working={working ? "true" : "false"} data-agent-state={agentState}>
+      <div className="chathead eos-agent-hd">
+        <div className="row" style={{ gap: 8, width: "100%" }}>
+          <span className="eos-spark" aria-hidden="true">✦</span>
+          <b style={{ fontSize: 13.5, lineHeight: 1.15 }}>Setup agent</b>
+          {agentState === "offline" && <span className="eos-agent-pill offline">Offline</span>}
+          {agentState === "starting" && <span className="eos-agent-pill starting">Starting</span>}
+          <span className="spacer" />
+          {shownTracks.length > 0 && (
+            <SelectMenu
+              label="Setup topic"
+              value={here ?? ""}
+              onChange={v => { const t = shownTracks.find(x => x.track === v); if (t) pick(t); }}
+              options={shownTracks.map(t => ({ value: t.track, label: t.label }))}
+            />
+          )}
+          {chatToggle && <button className="btn btn--sm btn--ghost btn--icon" type="button" onClick={chatToggle.toggle} aria-label="Hide the setup agent" title="Hide Setup agent"><Icon name="x" /></button>}
         </div>
         {status && !status.connected && (status.starting
           ? <div className="note small" role="status"><b>Starting the setup assistant…</b> This can take up to a minute. You can type now: your message waits for it.</div>
@@ -455,7 +478,13 @@ export function WithChat({ institutionId, onTrack, onApplied, at, children }: {
   institutionId: string | null; onTrack?: (t: TrackDef) => void; onApplied?: (p: Proposal) => void; at?: ChatAt; children: ReactNode;
 }) {
   const [open, setOpen] = useState(() => { try { return localStorage.getItem("amiri.setupChat") !== "closed"; } catch { return true; } });
-  const setShown = (v: boolean) => { setOpen(v); try { localStorage.setItem("amiri.setupChat", v ? "open" : "closed"); } catch { /* */ } };
+  const asideRef = useRef<HTMLElement>(null);
+  const scrollToChat = () => {
+    if (window.matchMedia("(max-width: 1020px)").matches) {
+      requestAnimationFrame(() => asideRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    }
+  };
+  const setShown = (v: boolean) => { setOpen(v); try { localStorage.setItem("amiri.setupChat", v ? "open" : "closed"); } catch { /* */ } if (v) scrollToChat(); };
   const toggle = () => setShown(!open);
   // "Ask the Setup agent instead" (Edit details, the step's explainer): open the panel and put the cursor in it
   const [askKey, setAskKey] = useState(0);
@@ -470,7 +499,7 @@ export function WithChat({ institutionId, onTrack, onApplied, at, children }: {
       <div style={{ minWidth: 0 }}>
         {children}
       </div>
-      {open && <aside className="chatside" aria-label="Setup agent"><SetupChat key={institutionId ?? "new"} institutionId={institutionId} onTrack={onTrack} onApplied={onApplied} at={at} askKey={askKey} /></aside>}
+      {open && <aside ref={asideRef} className="chatside eos-agent-float" aria-label="Setup agent"><SetupChat key={institutionId ?? "new"} institutionId={institutionId} onTrack={onTrack} onApplied={onApplied} at={at} askKey={askKey} /></aside>}
     </div>
     </ChatToggleCtx.Provider>
   );

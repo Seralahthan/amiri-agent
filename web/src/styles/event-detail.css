@@ -1,133 +1,241 @@
-/* One event, read top to bottom. The Findings/Alerts/Events language: hairlines and sections instead of cards, one line per
-   item, labels only where they differ, text 15 px and up. */
-.evd { max-width:1180px; font-size:16px; }
-.evd .muted { color:var(--ink-3); }
-.evd .facts { font-size:15px; }
-.evd .tech > summary { font-size:15px; }
-.evd .tech-bd, .evd .tech-bd .facts { font-size:14px; }
-.evd .rot { transform:rotate(90deg); }
+/* Event Detail — Executive Impact Dossier (Variation 1), unified with Enterprise OS tokens. */
+.evd .muted { color: var(--ink-3); }
+.evd .rot { transform: rotate(90deg); }
 
-/* the opening: when, bad or good, the event, the answer in a sentence */
-.evd-head .crumbs { margin-bottom:10px; font-size:14px; }
-.evd-when { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; margin:0; font-size:15px; color:var(--ink-3); font-variant-numeric:tabular-nums; }
-.evd-when .ph-help { font-size:15px; }
-.evd-h1row { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-top:6px; }
-.evd-head h1 { margin:0; font-size:44px; line-height:1.08; letter-spacing:-.03em; color:var(--ink); }
-.evd-head .ph-panel { margin-top:14px; }
-.evd-lede { margin:10px 0 0; font-size:18px; line-height:1.5; color:var(--ink-2); max-width:72ch; }
-.evd-lede b { color:var(--ink); }
-/* only the headline number is underlined (the Events list's convention), on the same slow beat */
-.evd-sim { display:flex; align-items:center; gap:8px; margin:12px 0 0; font-size:15px; color:var(--info-ink); }
-.evd-sim svg { width:16px; height:16px; flex:none; }
-
-/* where the event has got to: dots for the agent's steps, amber while people's step waits, a tick only for a person's finished step */
-.evd-prog { list-style:none; margin:14px 0 0; padding:0; display:flex; flex-wrap:wrap; align-items:center; gap:6px 0; font-size:15px; color:var(--ink-2); }
-.evd-prog li { display:inline-flex; align-items:center; gap:8px; }
-.evd-prog li + li::before { content:""; width:22px; height:1px; margin:0 10px; background:var(--line-strong); }
-.evd-prog i { width:10px; height:10px; border-radius:50%; flex:none; background:var(--ink-3); display:grid; place-items:center; }
-.evd-prog b { font-weight:600; color:var(--ink); }
-.evd-prog b span { font-weight:400; color:var(--ink-3); margin-left:6px; }
-.evd-prog .p-wait i { background:var(--medium); box-shadow:0 0 0 3px var(--medium-soft); }
-.evd-prog .p-wait b span { color:var(--medium-ink); }
-.evd-prog .p-now i { background:var(--info); box-shadow:0 0 0 3px var(--info-soft); }
-.evd-prog .p-person i { width:16px; height:16px; background:var(--accent); color:var(--on-accent); }
-.evd-prog .p-person i svg { width:11px; height:11px; }
-.evd-prog .p-off i { background:none; border:2px solid var(--line-strong); }
-.evd-prog .p-off b { font-weight:500; color:var(--ink-3); }
-
-/* a section: a heading on a rule, no box */
-.evd-sec { margin-top:36px; }
-.evd-sec > h2 { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin:0 0 4px; padding-bottom:8px; border-bottom:2px solid var(--line);
-  font-size:14px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--ink); }
-.evd-sec > h2 > span { font-size:14px; letter-spacing:0; padding:0 8px; border-radius:var(--r-pill); background:var(--sunken); color:var(--ink-2); }
-.evd-all { margin-left:auto; white-space:nowrap; font-size:15px; font-weight:600; letter-spacing:0; text-transform:none; color:var(--accent-ink); }
-.evd-sub { margin:12px 0 0; font-size:15px; color:var(--ink-3); }
-.evd-once { margin:10px 0 0; font-size:15px; color:var(--ink-2); }
-.evd-st { font-size:15px; color:var(--ink-3); white-space:nowrap; }
-
-/* a team, then its impacts */
-.evd-team { margin-top:14px; }
-.evd-team h3 { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 12px; margin:6px 0 0; font-size:18px; color:var(--ink-2); }
-.evd-team h3 a { display:inline-flex; align-items:center; gap:6px; color:var(--ink); text-decoration:none; }
-.evd-team h3 a:hover { text-decoration:underline; text-underline-offset:3px; }
-.evd-team h3 svg { width:16px; height:16px; color:var(--ink-3); }
-
-/* a product's possible impacts as one line, opened in place */
-.evd-line { border-bottom:1px solid var(--hairline); }
-.evd-line > summary { list-style:none; cursor:pointer; display:flex; align-items:baseline; gap:6px 16px; padding:11px 4px 11px 14px; font-size:16px; color:var(--ink-2); }
-.evd-line > summary::-webkit-details-marker { display:none; }
-.evd-line > summary:hover { background:var(--hover-bg); }
-.evd-line > summary b { color:var(--ink); }
-.evd-line > summary .pill { align-self:center; }
-.evd-l1 { flex:1 1 auto; min-width:0; }
-.evd-for.bad { color:var(--critical-ink); font-weight:600; }
-.evd-for.good { color:var(--accent-ink); font-weight:600; }
-.evd-chev { width:16px; height:16px; flex:none; color:var(--ink-3); align-self:center; transition:transform .15s; }
-.evd-line[open] > summary .evd-chev, .evd-fold[open] > summary .evd-chev { transform:rotate(90deg); }
-.evd-det { padding:4px 4px 14px 14px; display:flex; flex-direction:column; gap:10px; }
-.evd-det + .evd-det { border-top:1px dashed var(--hairline); padding-top:12px; }
-.evd-small { font-size:15px; color:var(--accent-ink); align-self:flex-start; }
-
-/* what happened */
-.evd-story { display:flex; flex-direction:column; gap:10px; padding-top:10px; font-size:16px; line-height:1.55; color:var(--ink-2); max-width:80ch; }
-.evd-story p { margin:0; }
-.evd-story b { color:var(--ink); }
-.evd-story a { color:var(--accent-ink); }
-.evd-story .src-ext { width:13px; height:13px; margin-left:4px; vertical-align:-1px; color:var(--ink-3); }
-.evd-src { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 8px; }
-.evd-where { display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px; font-size:15px; }
-.evd-devs { list-style:none; margin:8px 0 0; padding:0; }
-.evd-devs li { display:grid; grid-template-columns:120px minmax(0,1fr); gap:12px; padding:8px 0; border-top:1px solid var(--hairline); font-size:15px; color:var(--ink); }
-.evd-devs time { color:var(--ink-3); font-variant-numeric:tabular-nums; }
-
-/* where it came from and where it is: outlined labels in their own colours (as on the Events list) */
-.evd .ev-lab { display:inline-flex; align-items:center; gap:5px; padding:1px 9px; border:1px solid var(--line-strong); border-radius:var(--r-pill);
-  font:600 14px/1.5 var(--font-ui); color:var(--ink-2); white-space:nowrap; }
-.evd .ev-lab svg { width:14px; height:14px; flex:none; }
-.evd .ev-lab.src-radar { border-color:var(--info-line); color:var(--info-ink); background:var(--info-soft); }
-.evd .ev-lab.src-monitor { border-color:var(--high-line); color:var(--high-ink); background:var(--high-soft); }
-.evd .ev-lab.place { border-color:var(--medium-line); color:var(--medium-ink); background:var(--medium-soft); white-space:normal; }
-.evd .ev-go { display:inline-flex; align-items:center; gap:6px; align-self:flex-start; font-weight:600; text-decoration:none; color:var(--accent-ink); }
-.evd .ev-go:hover { text-decoration:underline; text-underline-offset:3px; }
-.evd .ev-go svg, .evd .ev-more svg { width:16px; height:16px; }
-.evd .ev-more { display:inline-flex; align-items:center; gap:6px; margin-top:4px; padding:8px 0; border:0; background:none; cursor:pointer;
-  font:600 16px/1.4 var(--font-ui); color:var(--accent-ink); }
-
-/* considered and set aside */
-.evd-aside { list-style:none; margin:4px 0 0; padding:0; }
-.evd-aside li { padding:11px 4px; border-bottom:1px solid var(--hairline); font-size:16px; color:var(--ink-2); }
-.evd-aside b { color:var(--ink); }
-
-/* the report, folded */
-.evd-foot { margin-top:32px; display:flex; flex-direction:column; gap:14px; }
-.evd-fold > summary { display:flex; align-items:center; gap:10px; cursor:pointer; padding:12px 4px; border-top:1px solid var(--hairline); border-bottom:1px solid var(--hairline);
-  font-weight:600; color:var(--ink); list-style:none; }
-.evd-fold > summary::-webkit-details-marker { display:none; }
-.evd-fold > summary:hover { background:var(--hover-bg); }
-.evd-fold > summary > svg:first-child { width:18px; height:18px; color:var(--ink-3); }
-.evd-fold > summary .muted { flex:1 1 auto; font-weight:400; font-size:15px; }
-.evd-rep { padding:8px 0; font-size:16px; max-width:80ch; }
-
-@media (max-width:900px) {
-  .evd-head h1 { font-size:32px; }
-  .evd-h1row { flex-direction:column; }
-  .evd-prog { gap:6px 16px; }
-  .evd-prog li + li::before { display:none; }
-  .evd-line > summary { display:grid; grid-template-columns:minmax(0,1fr) 16px; gap:4px 10px; padding-left:4px; }
-  .evd-line .evd-chev { grid-column:2; grid-row:1; }
-  .evd-line .evd-st, .evd-line > summary .pill { grid-column:1; justify-self:start; white-space:normal; }
-  .evd-det { padding-left:4px; }
-  .evd-devs li { grid-template-columns:minmax(0,1fr); gap:0; }
-  .evd-fold > summary { flex-wrap:wrap; }
-  .evd-fold > summary .muted { order:3; flex-basis:100%; padding-left:28px; }
+/* Header & breadcrumbs */
+.evd-head .crumbs { margin-bottom: 6px; font-size: 12.5px; color: var(--ink-3); display: flex; align-items: center; gap: 6px; }
+.evd-head .crumbs a { color: var(--ink-2); text-decoration: none; }
+.evd-head .crumbs a:hover { color: var(--accent); text-decoration: underline; }
+.evd-when {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px;
+  margin: 0 0 6px; font-size: 12.5px; color: var(--ink-3); font-variant-numeric: tabular-nums;
 }
-.evd-fold > summary .evd-chev { margin-left:auto; }
-/* the alerts didn't load: said in the section, with a retry, instead of filing every impact under "No team alerted" */
-.evd-fail { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; color:var(--medium-ink); }
-.evd-fail svg { width:16px; height:16px; flex:none; }
-.evd-retry { font:inherit; font-weight:600; color:var(--accent-ink); background:none; border:0; padding:0; cursor:pointer; }
-.evd-retry:hover { text-decoration:underline; text-underline-offset:3px; }
-/* every check agrees: the shared result once, under the impacts */
-.evd-shared { display:inline-flex; align-items:center; gap:8px; margin-left:6px; }
-/* how far the event could reach reads in amber, as on the Events list */
-.evd b.amb { color:var(--medium-ink); }
+.evd-when .ph-help { font-size: 12.5px; }
+.evd-head .ph-panel { margin-top: 10px; }
+.evd-sim { display: flex; align-items: center; gap: 8px; margin: 10px 0 0; font-size: 13px; color: var(--info-ink); }
+.evd-sim svg { width: 15px; height: 15px; flex: none; }
+
+/* 5-step framed Lifecycle Stepper */
+.evd-stepper {
+  list-style: none; margin: 0; padding: 12px 16px;
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px;
+  background: var(--pane); border: 1px solid var(--hairline); border-radius: var(--r-card);
+}
+.evd-stepper li { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.evd-stepper .st-dot {
+  width: 22px; height: 22px; border-radius: 999px; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700;
+}
+.evd-stepper .st-agent .st-dot,
+.evd-stepper .st-person .st-dot {
+  background: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent-line);
+}
+.evd-stepper .st-wait .st-dot {
+  background: var(--high-soft); color: var(--high-ink);
+  border: 1px solid color-mix(in oklch, var(--high) 30%, transparent);
+}
+.evd-stepper .st-now .st-dot {
+  background: var(--info-soft); color: var(--info-ink);
+  border: 1px solid color-mix(in oklch, var(--info) 30%, transparent);
+}
+.evd-stepper .st-off .st-dot {
+  background: var(--sunken); color: var(--ink-3); border: 1px solid var(--hairline-2);
+}
+.evd-stepper .st-body { display: flex; flex-direction: column; min-width: 0; }
+.evd-stepper .st-t { font-size: 12.5px; font-weight: 600; color: var(--ink); line-height: 1.25; }
+.evd-stepper .st-off .st-t { color: var(--ink-3); font-weight: 500; }
+.evd-stepper .st-s { font-size: 12px; color: var(--ink-3); line-height: 1.25; }
+.evd-stepper .st-wait .st-s { color: var(--high-ink); font-weight: 500; }
+
+/* 2-column Asymmetric Dossier */
+.evd-grid {
+  display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+  gap: 20px; align-items: start;
+}
+.evd-main { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.evd-rail { display: flex; flex-direction: column; gap: 12px; min-width: 0; position: sticky; top: 16px; }
+
+/* Section bar above team cards */
+.evd-sec-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding-bottom: 4px;
+}
+.evd-sec-bar h2 {
+  margin: 0; display: inline-flex; align-items: center; gap: 8px;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-2);
+}
+.evd-all { font-size: 12.5px; font-weight: 600; color: var(--accent); text-decoration: none; white-space: nowrap; }
+.evd-all:hover { text-decoration: underline; }
+.evd-once { margin: 0 0 2px; font-size: 12.5px; color: var(--ink-2); }
+.evd-sub { margin: 4px 0 0; font-size: 12px; color: var(--ink-3); }
+.evd-shared { display: inline-flex; align-items: center; gap: 6px; margin-left: 6px; }
+
+/* Team card status pill */
+.evd-team-st {
+  font-size: 12px; font-weight: 500; color: var(--ink-3);
+  padding: 2px 8px; border-radius: 999px; background: var(--sunken);
+}
+.evd-team-st.wait {
+  background: var(--high-soft); color: var(--high-ink); font-weight: 600;
+  border: 1px solid color-mix(in oklch, var(--high) 24%, transparent);
+}
+.evd-team-bd { background: var(--pane); }
+
+/* Product impact row inside team card */
+.evd-line { border-bottom: 1px solid var(--hairline); }
+.evd-line:last-child { border-bottom: 0; }
+.evd-line > summary {
+  list-style: none; cursor: pointer;
+  display: flex; align-items: center; gap: 8px 12px;
+  padding: 12px 16px; font-size: 13.5px; color: var(--ink-2);
+  transition: background 140ms var(--ease-out);
+}
+.evd-line > summary::-webkit-details-marker { display: none; }
+.evd-line > summary:hover { background: var(--hover-bg); }
+.evd-line > summary b { color: var(--ink); font-weight: 600; }
+.evd-l1 { flex: 1 1 auto; min-width: 0; line-height: 1.4; }
+.evd-for.bad { color: var(--critical-ink); font-weight: 600; }
+.evd-for.good { color: var(--accent-ink); font-weight: 600; }
+.evd-st {
+  font-size: 12px; font-weight: 500; color: var(--ink-2); white-space: nowrap;
+  padding: 2px 8px; border-radius: 999px; background: var(--sunken);
+}
+.evd-chev { width: 14px; height: 14px; flex: none; color: var(--ink-3); transition: transform 160ms var(--ease-out); }
+.evd-line[open] > summary { background: var(--paper); border-bottom: 1px solid var(--hairline); }
+.evd-line[open] > summary .evd-chev { transform: rotate(90deg); color: var(--accent); }
+.evd-det {
+  padding: 12px 16px 14px; background: var(--paper);
+  display: flex; flex-direction: column; gap: 8px; font-size: 12.5px;
+}
+.evd-det + .evd-det { border-top: 1px dashed var(--hairline); }
+.evd-small { font-size: 12px; font-weight: 600; color: var(--accent); align-self: flex-start; text-decoration: none; }
+.evd-small:hover { text-decoration: underline; }
+
+/* What happened (inside .eos-ai rail card) */
+.evd-story { display: flex; flex-direction: column; gap: 9px; font-size: 13px; line-height: 1.5; color: var(--ink-2); }
+.evd-story p { margin: 0; }
+.evd-story b { color: var(--ink); }
+.evd-story a { color: var(--accent-ink); font-weight: 600; }
+.evd-story .src-ext { width: 12px; height: 12px; margin-left: 4px; vertical-align: -1px; color: var(--ink-3); }
+.evd-src { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 8px; }
+.evd-where { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 12px; }
+.evd-devs { list-style: none; margin: 8px 0 0; padding: 0; }
+.evd-devs li { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 8px; padding: 6px 0; border-top: 1px solid var(--hairline); font-size: 12px; color: var(--ink); }
+.evd-devs time { color: var(--ink-3); font-variant-numeric: tabular-nums; }
+
+.evd .ev-lab {
+  display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px;
+  border: 1px solid var(--hairline-2); border-radius: 999px;
+  font-size: 12px; font-weight: 600; color: var(--ink-2); background: var(--pane); white-space: nowrap;
+}
+.evd .ev-lab svg { width: 12px; height: 12px; flex: none; }
+.evd .ev-lab.src-radar { border-color: var(--info-line); color: var(--info-ink); background: var(--info-soft); }
+.evd .ev-lab.src-monitor { border-color: var(--high-line); color: var(--high-ink); background: var(--high-soft); }
+.evd .ev-lab.place { border-color: var(--hairline-2); color: var(--ink-2); background: var(--pane); white-space: normal; }
+.evd .ev-go { display: inline-flex; align-items: center; gap: 5px; align-self: flex-start; font-size: 12.5px; font-weight: 600; text-decoration: none; color: var(--accent-ink); }
+.evd .ev-go:hover { text-decoration: underline; }
+.evd .ev-go svg, .evd .ev-more svg { width: 14px; height: 14px; }
+.evd .ev-more {
+  display: inline-flex; align-items: center; gap: 5px; margin-top: 2px; padding: 4px 0;
+  border: 0; background: none; cursor: pointer; font-size: 12.5px; font-weight: 600; color: var(--accent-ink);
+}
+
+/* Considered & set aside */
+.evd-aside { list-style: none; margin: 0; padding: 0; }
+.evd-aside li { padding: 8px 0; border-bottom: 1px solid var(--hairline); font-size: 12.5px; color: var(--ink-2); line-height: 1.45; }
+.evd-aside li:first-child { padding-top: 0; }
+.evd-aside li:last-child { border-bottom: 0; padding-bottom: 0; }
+.evd-aside b { color: var(--ink); }
+
+.evd-rep { font-size: 13px; line-height: 1.55; }
+
+/* Alert load failure inline note */
+.evd-fail { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; color: var(--medium-ink); margin-top: 8px; }
+.evd-fail svg { width: 15px; height: 15px; flex: none; }
+.evd-retry { font: inherit; font-weight: 600; color: var(--accent-ink); background: none; border: 0; padding: 0; cursor: pointer; }
+.evd-retry:hover { text-decoration: underline; }
+
+/* Visual 3-Step Causal Flow: WHAT HAPPENED → THE EVENT → YOUR PRODUCTS */
+.evd-chain {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 10px; align-items: stretch;
+}
+.evd-chain-step {
+  display: flex; flex-direction: column; justify-content: space-between; gap: 8px;
+  padding: 13px 15px; min-width: 0;
+  background: var(--pane); border: 1px solid var(--hairline); border-radius: var(--r-card);
+}
+.evd-chain-step.is-wait {
+  background: color-mix(in oklch, var(--high) 6%, var(--pane));
+  border-color: var(--high-line);
+}
+.evd-chain-arrow {
+  display: flex; align-items: center; justify-content: center;
+  color: var(--accent); font-size: 18px; font-weight: 700; user-select: none;
+}
+.evd-chain-top {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+}
+.evd-chain-k { font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-3); }
+.evd-chain-v { font-size: 14.5px; font-weight: 700; color: var(--ink); line-height: 1.35; }
+.evd-chain-clamp {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.evd-chain-foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+}
+.evd-chain-m { font-size: 12px; color: var(--ink-2); }
+.evd-chain-link { font-size: 12px; font-weight: 600; color: var(--accent-ink); text-decoration: none; white-space: nowrap; }
+.evd-chain-link:hover { text-decoration: underline; }
+
+/* By product / By team segmented view toggle */
+.evd-view-seg {
+  display: inline-flex; padding: 2px; border-radius: 8px;
+  background: var(--sunken); border: 1px solid var(--hairline);
+}
+.evd-view-seg button {
+  border: 0; background: transparent; cursor: pointer;
+  padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; color: var(--ink-3);
+  transition: background 140ms var(--ease-out), color 140ms var(--ease-out);
+}
+.evd-view-seg button[aria-pressed="true"] {
+  background: var(--pane); color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+.evd-owners {
+  font-size: 12px; color: var(--ink-2); white-space: nowrap; flex-shrink: 0;
+  padding: 2px 8px; border-radius: 999px; background: var(--sunken);
+  border: 1px solid var(--hairline);
+}
+
+/* Side-by-side AI Estimate vs. Verified Bank Data detail panel */
+.evd-det-split {
+  display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 14px;
+}
+.evd-det-col {
+  display: flex; flex-direction: column; gap: 8px; padding: 10px 12px;
+  min-width: 0; overflow-wrap: anywhere;
+  background: var(--pane); border: 1px solid var(--hairline); border-radius: 8px;
+}
+.evd-det-col .facts > div { flex-wrap: wrap; min-width: 0; }
+.evd-det-col .facts dd { min-width: 0; max-width: 100%; }
+.evd-det-col .badge { white-space: normal; text-align: left; max-width: 100%; line-height: 1.35; }
+.evd-det-col--data { border-left: 2px solid var(--accent-line); }
+.evd-det-hd {
+  font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+@media (max-width: 980px) {
+  .evd-grid { grid-template-columns: 1fr; }
+  .evd-rail { position: static; }
+  .evd-stepper { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .evd-chain { grid-template-columns: 1fr; gap: 8px; }
+  .evd-chain-arrow { display: none; }
+  .evd-det-split { grid-template-columns: 1fr; }
+}
+@media (max-width: 600px) {
+  .evd-stepper { grid-template-columns: 1fr; }
+  .evd-line > summary { flex-wrap: wrap; }
+}
